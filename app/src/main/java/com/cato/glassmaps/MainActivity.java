@@ -4,7 +4,13 @@ import static android.content.ContentValues.TAG;
 
 import static java.lang.Math.abs;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -13,15 +19,22 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Rotation;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
@@ -33,12 +46,19 @@ import org.mapsforge.map.layer.renderer.TileRendererLayer;
 import org.mapsforge.map.reader.MapFile;
 import org.mapsforge.map.rendertheme.internal.MapsforgeThemes;
 
+import java.util.List;
+
+
+import okhttp3.OkHttpClient;
+
 public class MainActivity extends Activity/*TODO compass: implements SensorEventListener*/{
     private MapView mapView;
     private LocationManager locationManager;
     private PowerManager.WakeLock wakeLock;
     private ImageView navArrow;
     private SensorManager sensorManager;
+    private List<ScanResult> wifiAccessPoints;
+    static OkHttpClient client = null;
     private Sensor accelerometer;
     private Sensor magnetometer;
     private float[] lastAccelerometer = new float[3];
@@ -49,13 +69,16 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
     private float[] orientation = new float[3];
     private Location lastLocation = null;
 
-    // Add offset constants (adjust these values as needed)
     private static final int MAP_OFFSET_X = 0;    // pixels to offset horizontally
     private static final int MAP_OFFSET_Y = 80; // pixels to offset vertically (negative moves up)
+
+    private static final int GPS_TIMEOUT_MS = 10000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CustomTrust customTrust = new CustomTrust(getApplicationContext());
+        client = customTrust.getClient();
 
         /*
          * Before you make any calls on the mapsforge library, you need to initialize the
@@ -163,6 +186,17 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
         super.onDestroy();
     }
 
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private long lastGpsTimestamp = 0L;
+    private final Runnable gpsTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long now = System.currentTimeMillis();
+            if (now - lastGpsTimestamp >= GPS_TIMEOUT_MS) {
+                getNetworkLocationUpdates();
+            }
+        }
+    };
     private void startLocationUpdates() {
         try {
             Log.d(TAG, "Starting location updates");
@@ -181,6 +215,10 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
                     Looper.getMainLooper() // Explicitly specify the looper
             );
 
+            lastGpsTimestamp = System.currentTimeMillis();
+            handler.removeCallbacks(gpsTimeoutRunnable);
+            handler.postDelayed(gpsTimeoutRunnable, 5000);
+
             // Get last known location
             Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
             if (lastKnownLocation != null) {
@@ -190,6 +228,66 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
         } catch (SecurityException e) {
             Log.e(TAG, "Location permission not granted", e);
         }
+    }
+
+    private void getNetworkLocationUpdates() {
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        BroadcastReceiver scanReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                //scanCompleted.complete(Unit)
+            }
+        };
+        registerReceiver(scanReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        wifiManager.startScan();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        List<ScanResult> wifis = wifiManager.getScanResults();
+        JSONObject jsonBody = new JSONObject();
+        JSONArray wifiArray = new JSONArray();
+        try {
+            for (ScanResult result : wifis) {
+                JSONObject wifiObj = new JSONObject();
+                wifiObj.put("macAddress", result.BSSID);
+                wifiObj.put("signalStrength", result.level);
+                wifiArray.put(wifiObj);
+            }
+            jsonBody.put("wifiAccessPoints", wifiArray);
+        } catch (JSONException e) {
+            Log.e(TAG, "JSON Error: " + e);
+        }
+        if (wifis != wifiAccessPoints) {
+            // Update only if there are changes
+            wifiAccessPoints = wifis;
+            HttpsUtils.makePostRequest(client, "https://api.beacondb.net/v1/geolocate", jsonBody, "POST", new HttpsUtils.HttpCallback() {
+                @Override
+                public void onSuccess(String response) {
+                    Log.d(TAG, "Network location response: " + response);
+                    Location networkLocation = new Location(LocationManager.NETWORK_PROVIDER);
+                    try {
+                        JSONObject jsonResponse = new JSONObject(response);
+                        JSONObject locationObj = jsonResponse.getJSONObject("location");
+                        double lat = locationObj.getDouble("lat");
+                        double lng = locationObj.getDouble("lng");
+                        double accuracy = jsonResponse.getDouble("accuracy");
+                        networkLocation.setLatitude(lat);
+                        networkLocation.setLongitude(lng);
+                        networkLocation.setAccuracy((float) accuracy);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "JSON Parsing Error: " + e);
+                    }
+                    locationListener.onLocationChanged(networkLocation);
+                }
+
+                @Override
+                public void onError(String errorMessage) {
+                    Log.e(TAG, "Network location error: " + errorMessage);
+                }
+            });
+        }
+
     }
 
     private final LocationListener locationListener = new LocationListener() {
@@ -218,6 +316,11 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
                 // Update map rotation to match movement direction
                 mapView.getModel().mapViewPosition.setRotation(new Rotation(bearing, 0, 0));
             }
+
+            lastGpsTimestamp = System.currentTimeMillis();
+            handler.removeCallbacks(gpsTimeoutRunnable);
+            handler.postDelayed(gpsTimeoutRunnable, 5000);
+
             lastLocation = location;
             updateMapPosition(location);
         }
@@ -331,6 +434,9 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
             wakeLock.release();
         }
         // Unregister sensor listeners
-        sensorManager.unregisterListener((SensorEventListener) this);
+        if (sensorManager != null && this instanceof SensorEventListener) {
+            sensorManager.unregisterListener((SensorEventListener) this);
+        }
+        handler.removeCallbacks(gpsTimeoutRunnable);
     }
 }
