@@ -19,7 +19,10 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Environment;
@@ -157,7 +160,6 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
 
             /*
              * The map also needs to know which area to display and at what zoom level.
-             * Note: this map position is specific to Diriyah area.
              */
             mapView.getModel().displayModel.setBackgroundColor(0x00000000);
             mapView.setZoomLevel((byte) 16);
@@ -217,7 +219,7 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
 
             lastGpsTimestamp = System.currentTimeMillis();
             handler.removeCallbacks(gpsTimeoutRunnable);
-            handler.postDelayed(gpsTimeoutRunnable, 5000);
+            handler.postDelayed(gpsTimeoutRunnable, GPS_TIMEOUT_MS);
 
             // Get last known location
             Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
@@ -236,7 +238,6 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
             @Override
             public void onReceive(Context context, Intent intent) {
                 context.unregisterReceiver(this);
-                //scanCompleted.complete(Unit)
             }
         };
         registerReceiver(scanReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
@@ -249,10 +250,13 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
         JSONArray wifiArray = new JSONArray();
         try {
             for (ScanResult result : wifis) {
-                JSONObject wifiObj = new JSONObject();
-                wifiObj.put("macAddress", result.BSSID);
-                wifiObj.put("signalStrength", result.level);
-                wifiArray.put(wifiObj);
+                if (!result.SSID.endsWith("_nomap")) {
+                    JSONObject wifiObj = new JSONObject();
+                    wifiObj.put("macAddress", result.BSSID);
+                    wifiObj.put("signalStrength", result.level);
+                    wifiObj.put("frequency", result.frequency);
+                    wifiArray.put(wifiObj);
+                }
             }
             jsonBody.put("wifiAccessPoints", wifiArray);
         } catch (JSONException e) {
@@ -319,7 +323,7 @@ public class MainActivity extends Activity/*TODO compass: implements SensorEvent
 
             lastGpsTimestamp = System.currentTimeMillis();
             handler.removeCallbacks(gpsTimeoutRunnable);
-            handler.postDelayed(gpsTimeoutRunnable, 5000);
+            handler.postDelayed(gpsTimeoutRunnable, GPS_TIMEOUT_MS);
 
             lastLocation = location;
             updateMapPosition(location);
