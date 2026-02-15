@@ -1,0 +1,846 @@
+package com.cato.glassmaps;
+
+import static java.lang.Math.abs;
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.hardware.GeomagneticField;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.net.Uri;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.speech.tts.TextToSpeech;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+
+
+import com.google.android.glass.touchpad.Gesture;
+import com.google.android.glass.touchpad.GestureDetector;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.maplibre.geojson.model.Point;
+import org.maplibre.navigation.core.instruction.Instruction;
+import org.maplibre.navigation.core.location.engine.LocationEngine;
+import org.maplibre.navigation.core.milestone.BannerInstructionMilestone;
+import org.maplibre.navigation.core.milestone.Milestone;
+import org.maplibre.navigation.core.milestone.MilestoneEventListener;
+import org.maplibre.navigation.core.models.BannerInstructions;
+import org.maplibre.navigation.core.models.DirectionsRoute;
+import org.maplibre.navigation.core.models.ManeuverModifier;
+import org.maplibre.navigation.core.models.RouteLeg;
+import org.maplibre.navigation.core.models.StepManeuver;
+import org.maplibre.navigation.core.navigation.MapLibreNavigation;
+import org.maplibre.navigation.core.navigation.MapLibreNavigationOptions;
+import org.maplibre.navigation.core.navigation.camera.Camera;
+import org.maplibre.navigation.core.navigation.camera.RouteInformation;
+import org.maplibre.navigation.core.navigation.camera.SimpleCamera;
+import org.maplibre.navigation.core.offroute.OffRouteDetector;
+import org.maplibre.navigation.core.route.FasterRouteDetector;
+import org.maplibre.navigation.core.routeprogress.ProgressChangeListener;
+import org.maplibre.navigation.core.routeprogress.RouteProgress;
+import org.maplibre.navigation.core.snap.SnapToRoute;
+import org.maplibre.navigation.core.utils.RouteUtils;
+import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
+import org.oscim.android.MapView;
+import org.oscim.backend.CanvasAdapter;
+import org.oscim.core.BoundingBox;
+import org.oscim.core.GeoPoint;
+import org.oscim.core.MapPosition;
+import org.oscim.layers.LocationTextureLayer;
+import org.oscim.layers.PathLayer;
+import org.oscim.layers.tile.buildings.BuildingLayer;
+import org.oscim.layers.tile.vector.VectorTileLayer;
+import org.oscim.layers.tile.vector.labeling.LabelLayer;
+import org.oscim.renderer.LocationCallback;
+import org.oscim.theme.IRenderTheme;
+import org.oscim.theme.styles.LineStyle;
+import org.oscim.tiling.source.mapfile.MapFileTileSource;
+import org.oscim.theme.internal.VtmThemes;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+
+import kotlin.Unit;
+import kotlin.coroutines.Continuation;
+import kotlin.jvm.functions.Function1;
+import kotlinx.coroutines.channels.ProducerScope;
+import kotlinx.coroutines.flow.Flow;
+import kotlinx.coroutines.flow.FlowKt;
+import okhttp3.OkHttpClient;
+
+public class MainActivity extends Activity implements SensorEventListener, TextToSpeech.OnInitListener {
+    private static final String TAG = "MainActivity";
+    static MapView mapView;
+    TextView directionDistance;
+    TextView primaryInstructionText;
+    TextView secondaryInstructionText;
+    TextView etaText;
+    ImageView directionImage;
+    ImageView modeImage;
+    static RouteProgress currentProgress;
+    static Milestone currentMilestone;
+    private GestureDetector mGestureDetector;
+    private LocationTextureLayer locationTextureLayer;
+    private IRenderTheme theme;
+    private LocationManager locationManager;
+    private PowerManager.WakeLock wakeLock;
+    private ImageView navArrow;
+    private SensorManager sensorManager;
+    private List<ScanResult> wifiAccessPoints;
+    static OkHttpClient client = null;
+    static DirectionsRoute route;
+    private final float[] mRotationMatrix = new float[16];
+    private final float[] mOrientation = new float[9];
+    private float mHeading;
+    private float mPitch;
+    private GeomagneticField mGeomagneticField;
+    static Location lastLocation = null;
+    private double scale = 100000.0;
+
+    private static TextToSpeech tts;
+    private static boolean initialized = false;
+    private static String queuedText;
+
+    private final Handler bluetoothHandler = new Handler(Looper.getMainLooper()) {
+        @Override
+        public void handleMessage(@NonNull android.os.Message msg) {
+            if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_READ) {
+                bluetoothConnected = true;
+                try {
+                    byte[] payload = (byte[]) msg.obj;
+                    String readMessage = new String(payload, 0, msg.arg1);
+                    Log.i(TAG, "Got bluetooth message: " + readMessage);
+                    try {
+                        JSONObject jsonMessage = new JSONObject(readMessage);
+                        if (jsonMessage.getString("type").equals("location")) {
+                            Location btLocation = new Location("Bluetooth");
+                            btLocation.setLatitude(jsonMessage.getDouble("latitude"));
+                            btLocation.setLongitude(jsonMessage.getDouble("longitude"));
+                            btLocation.setAltitude(jsonMessage.getDouble("altitude"));
+                            btLocation.setSpeed((float) jsonMessage.getDouble("speed"));
+                            btLocation.setBearing((float) jsonMessage.getDouble("bearing"));
+                            Log.d(TAG, "Bluetooth location received: " + btLocation.toString());
+                            locationListener.onLocationChanged(btLocation);
+                            // Stop GPS updates when Bluetooth is connected
+                            if (locationManager != null) {
+                                locationManager.removeUpdates(locationListener);
+                            }
+                            handler.removeCallbacks(gpsTimeoutRunnable);
+                        } else if (jsonMessage.getString("type").equals("search")) {
+                            Utils.selectedInfo = new Utils.LocationInfo(jsonMessage.getString("name"), jsonMessage.getString("displayName"), new GeoPoint(jsonMessage.getDouble("latitude"), jsonMessage.getDouble("longitude")), (float) jsonMessage.getDouble("distance"));
+                            Intent routeIntent = new Intent(MainActivity.this, RouteActivity.class);
+                            startActivity(routeIntent);
+                        }
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+                } catch (ClassCastException e) {
+                    Log.e(TAG, "Unexpected MESSAGE_READ payload type", e);
+                }
+            } else if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_ERROR) {
+                bluetoothConnected = false;
+                Log.e(TAG, "Bluetooth error: " + msg.obj);
+                Log.i(TAG, "Restarting GPS updates");
+                startLocationUpdates();
+                Log.i(TAG, "Restarting bluetooth service");
+                bluetoothService.start();
+            }
+        }
+    };
+    private static BluetoothMapsService bluetoothService;
+    boolean bluetoothConnected = false;
+
+    private static final int MAP_OFFSET_X = 0;    // pixels to offset horizontally
+    private static final int MAP_OFFSET_Y = 80; // pixels to offset vertically (negative moves up)
+
+    private static final int GPS_TIMEOUT_MS = 5000;
+
+    @SuppressLint("MissingPermission")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        CustomTrust customTrust = new CustomTrust(getApplicationContext());
+        client = customTrust.getClient();
+
+        /*
+         * Before you make any calls on the mapsforge library, you need to initialize the
+         * AndroidGraphicFactory. Behind the scenes, this initialization process gathers a bit of
+         * information on your device, such as the screen resolution, that allows mapsforge to
+         * automatically adapt the rendering for the device.
+         * If you forget this step, your app will crash. You can place this code, like in the
+         * Samples app, in the Android Application class. This ensures it is created before any
+         * specific activity. But it can also be created in the onCreate() method in your activity.
+         */
+        AndroidGraphicFactory.createInstance(getApplication());
+
+        /*
+         * A MapView is an Android View (or ViewGroup) that displays a mapsforge map. You can have
+         * multiple MapViews in your app or even a single Activity. Have a look at the mapviewer.xml
+         * on how to create a MapView using the Android XML Layout definitions.
+         */
+        setContentView(R.layout.mapviewer);
+
+        directionDistance = findViewById(R.id.direction_distance);
+        directionImage = findViewById(R.id.direction);
+        modeImage = findViewById(R.id.mode);
+        primaryInstructionText = findViewById(R.id.primary_instruction);
+        secondaryInstructionText = findViewById(R.id.secondary_instruction);
+        etaText = findViewById(R.id.eta);
+
+        mapView = findViewById(R.id.mapView);
+
+        mapView.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN);
+
+        // Initialize sensors
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+
+        // Initialize wake lock
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                "GlassMaps::LocationWakeLock");
+        Uri mapFilePath = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
+        //String mapFilePath = getFilesDir().getPath() + "/Map.map";
+        try {
+            openMap(mapFilePath);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        tts = new TextToSpeech(this, this);
+        mGestureDetector = createGestureDetector(this);
+        if ( BluetoothAdapter.getDefaultAdapter() != null) { //TODO: This check is not needed on real hardware
+            bluetoothService = new BluetoothMapsService(this, bluetoothHandler);
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Bluetooth permission not granted!");
+            } else {
+                bluetoothService.start();
+            }
+        } else {
+            Log.i(TAG, "Bluetooth not supported on this device");
+        }
+    }
+    private void openMap(Uri mapFileUri) {
+        try {
+            if (mapFileUri == null) {
+                Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
+                return;
+            }
+
+            // Tile source
+            MapFileTileSource tileSource = new MapFileTileSource();
+            FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
+            tileSource.setMapFileInputStream(fis);
+
+            // Vector layer
+            VectorTileLayer tileLayer = mapView.map().setBaseMap(tileSource);
+
+            // Building layer
+            mapView.map().layers().add(new BuildingLayer(mapView.map(), tileLayer));
+
+            // Label layer
+            mapView.map().layers().add(new LabelLayer(mapView.map(), tileLayer));
+
+            locationTextureLayer = new LocationTextureLayer(mapView.map(), 1f);
+
+            locationTextureLayer.locationRenderer.setBitmapArrow(CanvasAdapter.decodeBitmap(getResources().openRawResource(R.raw.location_texture)));
+            locationTextureLayer.locationRenderer.setBitmapMarker(CanvasAdapter.decodeBitmap(getResources().openRawResource(R.raw.marker_texture)));
+            locationTextureLayer.locationRenderer.setCallback(new LocationCallback() {
+                @Override
+                public boolean hasRotation() {
+                    return true;
+                }
+
+                @Override
+                public float getRotation() {
+                    return mHeading;
+                }
+            });
+            mapView.map().layers().add(locationTextureLayer);
+
+            // Render theme
+            theme = mapView.map().setTheme(VtmThemes.DARK);
+
+            mapView.map().viewport().setMinScale(10000);
+            mapView.map().viewport().setMaxScale(10000000);
+            mapView.map().viewport().setMaxTilt(45.0f);
+            mapView.map().viewport().setMinTilt(45.0f);
+            mapView.map().viewport().setMapViewCenterY(0.3f); //TODO: Set this properly for Google Glass screen
+
+            // Request location updates
+            locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+            startLocationUpdates();
+        } catch (Exception e) {
+            /*
+             * In case of map file errors avoid crash, but developers should handle these cases!
+             */
+            e.printStackTrace();
+        }
+    }
+
+
+
+    public static void startRouteNavigation() {
+        if (route == null) {
+            Log.e(TAG, "No route available for navigation");
+            return;
+        }
+        /*try {
+            JSONObject leg = routeObj.getJSONObject("trip").getJSONArray("legs").getJSONObject(0);
+            List<GeoPoint> shape = decodePolyline(leg.getString("shape"));
+            PathLayer pathLayer = new PathLayer(mapView.map(), new LineStyle(Color.RED, 10));
+            for ( GeoPoint p : shape) {
+                pathLayer.addPoint(p);
+            }
+            Log.i(TAG, "Adding route with " + shape.size() + " points to map");
+            //Remove existing path layer if present
+            for (Layer layer : mapView.map().layers()) {
+                if (layer instanceof PathLayer) {
+                    mapView.map().layers().remove(layer);
+                    break;
+                }
+            }
+            mapView.map().layers().add(pathLayer);
+
+
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }*/
+        LocationEngine locationEngine = new LocationEngine() {
+            @Override
+            public @NotNull Flow<org.maplibre.navigation.core.location.@NotNull Location> listenToLocation(@NotNull Request request) {
+                return KotlinUtils.locationFlow(request);
+            }
+
+            @Override
+            public @Nullable Object getLastLocation(@NotNull Continuation<? super org.maplibre.navigation.core.location.@Nullable Location> $completion) {
+                return Utils.androidLocationtoMapLibreLocation(lastLocation);
+            }
+        };
+        MapLibreNavigation navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), new SnapToRoute(), new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
+        navigation.startNavigation(route);
+        navigation.addProgressChangeListener(new ProgressChangeListener() {
+            @Override
+            public void onProgressChange(org.maplibre.navigation.core.location.@NotNull Location location, @NotNull RouteProgress routeProgress) {
+                Log.i(TAG, "Progress update: " + routeProgress);
+                currentProgress = routeProgress;
+            }
+        });
+        navigation.addMilestoneEventListener(new MilestoneEventListener() {
+            @Override
+            public void onMilestoneEvent(@NotNull RouteProgress routeProgress, @Nullable String instruction, @NotNull Milestone milestone) {
+                //TODO: Turn on screen, play alert sound, then use tts with instruction
+                Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
+                if (instruction != null) {
+                    speak(instruction);
+                }
+                currentMilestone = milestone;
+            }
+        });
+        List<GeoPoint> routePoints = decodePolyline(route.getGeometry());
+        PathLayer pathLayer = new PathLayer(mapView.map(), new LineStyle(Color.CYAN, 10));
+        for ( GeoPoint p : routePoints) {
+            pathLayer.addPoint(p);
+        }
+        mapView.map().layers().add(mapView.map().layers().size() - 2, pathLayer);
+        //TODO: Show marker at final destination
+    }
+
+    private static List<GeoPoint> decodePolyline(String encoded) {
+        List<GeoPoint> track = new ArrayList<>();
+        int index = 0;
+        int lat = 0, lng = 0;
+
+        while (index < encoded.length()) {
+            int b, shift = 0, result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lat += dlat;
+
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lng += dlng;
+
+            GeoPoint p = new GeoPoint((double) lat / 1E6, (double) lng / 1E6);
+            track.add(p);
+        }
+        return track;
+    }
+
+    @Override
+    protected void onDestroy() {
+        /*
+         * Whenever your activity exits, some cleanup operations have to be performed lest your app
+         * runs out of memory.
+         */
+        if (wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+        mapView.onDestroy();
+        if (theme != null) theme.dispose();
+        super.onDestroy();
+    }
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private long lastGpsTimestamp = 0L;
+    private final Runnable gpsTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long now = System.currentTimeMillis();
+            if (now - lastGpsTimestamp >= GPS_TIMEOUT_MS) {
+                getNetworkLocationUpdates();
+            }
+        }
+    };
+    private void startLocationUpdates() {
+        try {
+            Log.i(TAG, "Starting location updates");
+            if (bluetoothConnected) {
+                Log.d(TAG, "Bluetooth connected, skipping GPS request");
+                handler.removeCallbacks(gpsTimeoutRunnable); // Remove any pending GPS timeout callbacks
+                locationManager.removeUpdates(locationListener);
+                return;
+            }
+
+            if (locationManager == null) {
+                locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+                if (locationManager == null) {
+                    Log.e(TAG, "LocationManager is null");
+                    return;
+                }
+            }
+
+            // Acquire wake lock to prevent GPS from being shut down
+            if (!wakeLock.isHeld()) {
+                wakeLock.acquire();
+            }
+
+            Criteria criteria = new Criteria();
+            criteria.setAccuracy(Criteria.ACCURACY_FINE);
+            criteria.setAltitudeRequired(true);
+
+            List<String> providers = locationManager.getProviders(
+                    criteria, true /* enabledOnly */);
+
+            for (String provider : providers) {
+                locationManager.requestLocationUpdates(provider, 500,
+                        0.5f, locationListener);
+            }
+
+            lastGpsTimestamp = System.currentTimeMillis();
+            handler.removeCallbacks(gpsTimeoutRunnable);
+            handler.postDelayed(gpsTimeoutRunnable, GPS_TIMEOUT_MS);
+
+            // Get last known location
+            Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            if (lastKnownLocation != null) {
+                updateMapPosition(lastKnownLocation);
+            }
+
+        } catch (SecurityException e) {
+            Log.e(TAG, "Location permission not granted", e);
+        }
+    }
+
+    /*static void showRouteOverview() {
+        if (!isShowingOverview) {
+            List<GeoPoint> routePoints = decodePolyline(route.getGeometry());
+            Check if navigation is in progress, and if so, don't draw the route, as it's already shown by the nav
+            PathLayer pathLayer = new PathLayer(mapView.map(), new LineStyle(Color.CYAN, 10));
+            for ( GeoPoint p : routePoints) {
+                pathLayer.addPoint(p);
+            }
+            mapView.map().layers().add(pathLayer);
+            BoundingBox bbox = new BoundingBox(routePoints);
+            MapPosition mapPosition = new MapPosition();
+            mapPosition.setByBoundingBox(bbox, mapView.getWidth(), mapView.getHeight());
+            mapView.map().setMapPosition(mapPosition);
+            isShowingOverview = true;
+        }
+    }*/
+
+    /*private Location locationFromBytes(byte[] data) {
+        try {
+            ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN);
+            double lat = bb.getDouble();      // bytes 0..7
+            double lon = bb.getDouble();      // bytes 8..15
+            double alt = bb.getDouble();      // bytes 16..23
+            float speed = bb.getFloat();      // bytes 24..27
+            float bearing = bb.getFloat();    // bytes 28..31
+
+            Location loc = new Location("Bluetooth");
+            loc.setLatitude(lat);
+            loc.setLongitude(lon);
+            loc.setAltitude(alt);
+            loc.setSpeed(speed);
+            loc.setBearing(bearing);
+            loc.setTime(System.currentTimeMillis());
+            return loc;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to parse Bluetooth location bytes", e);
+            return null;
+        }
+    }*/
+
+    private void getNetworkLocationUpdates() {
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        wifiManager.startScan();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        List<ScanResult> wifis = wifiManager.getScanResults();
+        if (!wifis.equals(wifiAccessPoints)) {
+            // Update only if there are changes
+            wifiAccessPoints = wifis;
+            JSONObject jsonBody = new JSONObject();
+            JSONArray wifiArray = new JSONArray();
+            try {
+                for (ScanResult result : wifis) {
+                    if (!result.SSID.endsWith("_nomap")) {
+                        JSONObject wifiObj = new JSONObject();
+                        wifiObj.put("macAddress", result.BSSID);
+                        wifiObj.put("signalStrength", result.level);
+                        wifiObj.put("frequency", result.frequency);
+                        wifiArray.put(wifiObj);
+                    }
+                }
+                jsonBody.put("wifiAccessPoints", wifiArray);
+                //Log.d(TAG, "WiFi scan results: " + jsonBody.toString());
+            } catch (JSONException e) {
+                Log.e(TAG, "JSON Error: " + e);
+            }
+            HttpsUtils.makePostRequest(client, "https://api.beacondb.net/v1/geolocate", jsonBody, "POST", new HttpsUtils.HttpCallback() {
+                @Override
+                public void onSuccess(String response) {
+                    Log.d(TAG, "Network location response: " + response);
+                    Location networkLocation = new Location(LocationManager.NETWORK_PROVIDER);
+                    try {
+                        JSONObject jsonResponse = new JSONObject(response);
+                        JSONObject locationObj = jsonResponse.getJSONObject("location");
+                        double lat = locationObj.getDouble("lat");
+                        double lng = locationObj.getDouble("lng");
+                        double accuracy = jsonResponse.getDouble("accuracy");
+                        networkLocation.setLatitude(lat);
+                        networkLocation.setLongitude(lng);
+                        networkLocation.setAccuracy((float) accuracy);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "JSON Parsing Error: " + e);
+                    }
+                    locationListener.onLocationChanged(networkLocation);
+                }
+
+                @Override
+                public void onError(String errorMessage) {
+                    Log.e(TAG, "Network location error: " + errorMessage);
+                }
+            });
+        } else {
+            Log.d(TAG, "Scan results unchanged, skipping network location request");
+        }
+
+    }
+
+    /**
+     * Updates the cached instance of the geomagnetic field after a location change.
+     */
+    private void updateGeomagneticField(Location location) {
+        mGeomagneticField = new GeomagneticField((float) location.getLatitude(),
+                (float) location.getLongitude(), (float) location.getAltitude(),
+                location.getTime());
+    }
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(@NonNull Location location) {
+            Log.d(TAG, "Location changed: " + location);
+            double bearing = 0;
+            if (lastLocation != null) {
+                // Calculate bearing between last and current location
+                double latitude1 = Math.toRadians(lastLocation.getLatitude());
+                double longitude1 = Math.toRadians(-lastLocation.getLongitude());
+                double latitude2 = Math.toRadians(location.getLatitude());
+                double longitude2 = Math.toRadians(-location.getLongitude());
+
+                double dLong = longitude2 - longitude1;
+
+                double dPhi = Math.log(Math.tan(latitude2 / 2.0 + Math.PI / 4.0) / Math.tan(latitude1 / 2.0 + Math.PI / 4.0));
+                if (abs(dLong) > Math.PI)
+                    if (dLong > 0.0)
+                        dLong = -(2.0 * Math.PI - dLong);
+                    else
+                        dLong = (2.0 * Math.PI + dLong);
+
+                bearing = ((Math.toDegrees(Math.atan2(dLong, dPhi)) + 360.0) % 360.0);
+                Log.d(TAG, "Bearing: " + bearing);
+            }
+
+            lastGpsTimestamp = System.currentTimeMillis();
+            handler.removeCallbacks(gpsTimeoutRunnable);
+            handler.postDelayed(gpsTimeoutRunnable, GPS_TIMEOUT_MS);
+
+            updateGeomagneticField(location);
+            updateMapPosition(location);
+            location.setBearing((float) bearing);
+
+            KotlinUtils.Companion.sendLocation(Utils.androidLocationtoMapLibreLocation(location));
+
+            if (currentProgress != null && currentMilestone != null) {
+                //Set UI
+                if (currentMilestone instanceof BannerInstructionMilestone) {
+                    BannerInstructions instructions = ((BannerInstructionMilestone) currentMilestone).getBannerInstructions();
+                    if (instructions != null) {
+                        primaryInstructionText.setText(instructions.getPrimary().getText());
+                        if (instructions.getSecondary() != null) {
+                            secondaryInstructionText.setText(instructions.getSecondary().getText());
+                        }
+                        if (instructions.getSub() != null) {
+                            Log.i(TAG, "Subtext: " + instructions.getSub().getText());
+                        }
+                    }
+                }
+                directionDistance.setText(Math.round(currentProgress.getStepDistanceRemaining()) + "m");
+                etaText.setText(Math.round(currentProgress.getDurationRemaining()/60) + " min");
+                StepManeuver currentManeuver = currentProgress.getCurrentLegProgress().getCurrentStep().getManeuver();
+                directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
+
+            }
+            lastLocation = location;
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+            Log.d(TAG, "Status changed: " + provider + ", status: " + status);
+        }
+
+        @Override
+        public void onProviderEnabled(@NonNull String provider) {
+            Log.d(TAG, "Provider enabled: " + provider);
+            if (provider.equals(LocationManager.GPS_PROVIDER)) {
+                startLocationUpdates(); // Restart updates when GPS is enabled
+            }
+        }
+
+        @Override
+        public void onProviderDisabled(@NonNull String provider) {
+            Log.d(TAG, "Provider disabled: " + provider);
+        }
+    };
+
+
+    static float mod(float a, float b) {
+        return (a % b + b) % b;
+    }
+    private float computeTrueNorth(float heading) {
+        if (mGeomagneticField != null) {
+            return heading + mGeomagneticField.getDeclination();
+        } else {
+            return heading;
+        }
+    }
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+            // Get the current heading from the sensor, then notify the listeners of the
+            // change.
+            SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
+            SensorManager.remapCoordinateSystem(mRotationMatrix, SensorManager.AXIS_X,
+                    SensorManager.AXIS_Z, mRotationMatrix);
+            SensorManager.getOrientation(mRotationMatrix, mOrientation);
+
+            // Store the pitch (used to display a message indicating that the user's head
+            // angle is too steep to produce reliable results.
+            mPitch = (float) Math.toDegrees(mOrientation[1]);
+
+            // Convert the heading (which is relative to magnetic north) to one that is
+            // relative to true north, using the user's current location to compute this.
+            float magneticHeading = (float) Math.toDegrees(mOrientation[0]);
+            mHeading = mod(computeTrueNorth(magneticHeading), 360.0f)
+                    - 6;
+            mapView.map().viewport().setRotation(-mHeading);
+            mapView.map().updateMap(true);
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        /*if (sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) { TODO: Implement interference warning
+            mHasInterference = (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
+            notifyAccuracyChanged();
+        }*/
+    }
+
+
+    private void updateMapPosition(Location location) {
+        Log.i(TAG, "Updating map position to " + location);
+        locationTextureLayer.setPosition(location.getLatitude(), location.getLongitude(), location.getAccuracy());
+        //mapView.map().animator().animateTo(10, new GeoPoint(location.getLatitude(), location.getLongitude()));
+        if (lastLocation == null) {
+            mapView.map().setMapPosition(location.getLatitude(), location.getLongitude(), 100000.0);
+            return;
+        }
+        mapView.map().setMapPosition(location.getLatitude(), location.getLongitude(), scale);
+        mapView.map().viewport().setRotation(-mHeading);
+    }
+
+    @Override
+    protected void onResume() {
+        Log.i(TAG, "Resuming activity, starting location updates");
+        super.onResume();
+        mapView.onResume();
+        if (locationManager == null) {
+            locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        }
+
+        // Register sensor listeners TODO compass
+        sensorManager.registerListener(this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR),
+                SensorManager.SENSOR_DELAY_UI);
+
+        // The rotation vector sensor doesn't give us accuracy updates, so we observe the
+        // magnetic field sensor solely for those.
+        sensorManager.registerListener(this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
+                SensorManager.SENSOR_DELAY_UI);
+
+        // Stop any existing updates before starting new ones
+        locationManager.removeUpdates(locationListener);
+        startLocationUpdates();
+    }
+
+    @Override
+    protected void onPause() {
+        Log.i(TAG, "Pausing activity");
+        super.onPause();
+        mapView.onPause();
+        //if (locationManager != null) {
+        //    locationManager.removeUpdates(locationListener);
+        //}
+        // Unregister sensor listeners
+        if (sensorManager != null && this instanceof SensorEventListener) {
+            sensorManager.unregisterListener((SensorEventListener) this);
+        }
+        handler.removeCallbacks(gpsTimeoutRunnable);
+    }
+
+    public static void speak(String text) {
+        // If not yet initialized, queue up the text.
+        if (!initialized) {
+            queuedText = text;
+            return;
+        }
+        queuedText = null;
+        // Before speaking the current text, stop any ongoing speech.
+        tts.stop();
+        // Speak the text.
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+    }
+    @Override
+    public void onInit(int status) {
+        if (status == TextToSpeech.SUCCESS) {
+            initialized = true;
+            tts.setLanguage(Locale.ENGLISH);
+
+            if (queuedText != null) {
+                speak(queuedText);
+            }
+        }
+    }
+
+    private GestureDetector createGestureDetector(Context context) {
+        GestureDetector gestureDetector = new GestureDetector(context);
+        //Create a base listener for generic gestures
+        gestureDetector.setBaseListener( new GestureDetector.BaseListener() {
+            @Override
+            public boolean onGesture(Gesture gesture) {
+                if (gesture == Gesture.TAP && lastLocation != null) {
+                    Intent tapIntent = new Intent(MainActivity.this, SearchActivity.class);
+                    startActivity(tapIntent);
+                    return true;
+                }
+                return false;
+            }
+        });
+        gestureDetector.setScrollListener(new GestureDetector.ScrollListener() {
+            @Override
+            public boolean onScroll(float displacement, float delta, float velocity) {
+                if (lastLocation == null) return false;
+                double sensitivity = 0.005; // tweak this to taste
+                double factor = 1.0 + (delta * sensitivity);
+                factor = Math.max(0.1, factor); // avoid zero/negative scale
+                scale *= factor;
+                mapView.map().setMapPosition(
+                        lastLocation.getLatitude(),
+                        lastLocation.getLongitude(),
+                        scale
+                );
+                mapView.map().viewport().setRotation(-mHeading);
+
+                //Log.d(TAG, "Scroll detected: displacement=" + displacement + ", delta=" + delta +
+                //        ", velocity=" + velocity + ", newZoom=" + mapView.map().getMapPosition().getScale());
+                return true;
+            }
+        });
+        return gestureDetector;
+    }
+    /* Send generic motion events to the gesture detector */
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        if (mGestureDetector != null) {
+            return mGestureDetector.onMotionEvent(event);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        return onGenericMotionEvent(event);
+    }
+}
