@@ -786,8 +786,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     - 6;
             if (mode == Mode.NONE || mode == Mode.WALK) {
                 mapView.map().viewport().setRotation(-mHeading);
-                mapView.map().updateMap(true);
             }
+            mapView.map().updateMap(true);
         }
     }
 
