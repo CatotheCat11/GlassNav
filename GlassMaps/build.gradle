@@ -8,6 +8,7 @@ android {
     compileSdk 36
 
     defaultConfig {
+        multiDexEnabled true
         applicationId "com.cato.glassmaps"
         minSdk 19
         targetSdk 36
@@ -53,10 +54,14 @@ dependencies {
     implementation 'com.github.mapsforge.vtm:vtm-themes:0.27.0@jar'
     implementation 'com.github.mapsforge.vtm:vtm-android:0.27.0@jar'
     implementation 'com.github.mapsforge.vtm:vtm-http:0.27.0@jar'
+    implementation 'com.github.mapsforge.vtm:vtm-mvt:0.27.0@jar'
     runtimeOnly 'com.github.mapsforge.vtm:vtm-android:0.27.0:natives-armeabi-v7a@jar'
     runtimeOnly 'com.github.mapsforge.vtm:vtm-android:0.27.0:natives-arm64-v8a@jar'
     runtimeOnly 'com.github.mapsforge.vtm:vtm-android:0.27.0:natives-x86@jar'
     runtimeOnly 'com.github.mapsforge.vtm:vtm-android:0.27.0:natives-x86_64@jar'
     implementation 'com.caverock:androidsvg:1.4'
+    implementation 'com.google.protobuf:protobuf-java:3.24.2'
+    implementation 'io.github.ci-cmg:mapbox-vector-tile:4.0.6'
+    implementation 'org.locationtech.jts:jts-core:1.20.0'
     implementation project(':maplibre-navigation-core')
 }

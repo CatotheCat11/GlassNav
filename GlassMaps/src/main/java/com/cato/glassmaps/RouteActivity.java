@@ -113,11 +113,14 @@ public class RouteActivity extends Activity {
                 }*/
                 //TODO: Set MainActivity mode (walking, cycling, driving)
                 if (position == 1) { // Start walking
-                    getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, "pedestrian");
-                } else if (position == 2) { // Start walking
-                    getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, "bicycle");
+                    MainActivity.mode = MainActivity.Mode.WALK;
+                    startMainActivity();
+                } else if (position == 2) { // Start cycling
+                    MainActivity.mode = MainActivity.Mode.CYCLE;
+                    startMainActivity();
                 } else if (position == 3) { // Start driving
-                    getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, "auto");
+                    MainActivity.mode = MainActivity.Mode.DRIVE;
+                    startMainActivity();
                 } else if (position == 4) { // Save TODO: Add ability to unsave and indicate that save was successful
                     SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -140,87 +143,12 @@ public class RouteActivity extends Activity {
         });
     }
 
-    private void getRoute(double latitude, double longitude, String name, String costing){
-        //FIXME: Crash if lastlocation is null
-        Log.d(TAG, "Getting route to " + latitude + ", " + longitude);
-        JSONObject request = new JSONObject();
-        try {
-            JSONArray locations = new JSONArray();
-            JSONObject startPos = new JSONObject();
-            JSONObject endPos = new JSONObject();
-            startPos.put("lat", MainActivity.lastLocation.getLatitude());
-            startPos.put("lon", MainActivity.lastLocation.getLongitude());
-            endPos.put("lat", latitude);
-            endPos.put("lon", longitude);
-            endPos.put("name", name);
-            locations.put(startPos);
-            locations.put(endPos);
-            //JSONObject costingOptions = new JSONObject();
-            //JSONObject costingType = new JSONObject();
-            //costingType.put("top_speed", 130); //
-            //costingOptions.put(costing, costingType);
-            //request.put("costing_options", costingOptions);
-            request.put("locations", locations);
-            request.put("costing", costing);
-            request.put("format", "osrm");
-            request.put("banner_instructions", true);
-            request.put("voice_instructions", true);
-            Log.i(TAG, "Route request: " + request.toString());
-        } catch (JSONException e) {
-            Log.e(TAG, "An error occurred: " + e);
-        }
-        HttpsUtils.makePostRequest(MainActivity.client, "https://valhalla1.openstreetmap.de/route", request, "POST", new HttpsUtils.HttpCallback() {
-
-            @Override
-            public void onSuccess(String response) {
-                Log.i(TAG, "Route response: " + response);
-                DirectionsRoute route = DirectionsResponse.fromJson(response).getRoutes().get(0);
-
-                List<Point> coordinates = Arrays.asList(new Point(List.of(MainActivity.lastLocation.getLongitude(), MainActivity.lastLocation.getLatitude())), new Point(List.of(longitude, latitude)));
-                RouteOptions routeOptions = new RouteOptions(
-                        "https://valhalla.routing",   // baseUrl
-                        "valhalla",                   // user
-                        "valhalla",                   // profile
-                        coordinates,                  // coordinates
-                        null,                         // alternatives
-                        Locale.getDefault().getLanguage(), // language
-                        null,                         // radiuses
-                        null,                         // bearings
-                        null,                         // continueStraight
-                        null,                         // roundaboutExits
-                        null,                         // geometries
-                        null,                         // overview
-                        null,                         // steps
-                        null,                         // annotations
-                        null,                         // exclude
-                        true,                         // voiceInstructions
-                        true,                         // bannerInstructions
-                        null,                         // voiceUnits
-                        "valhalla",                   // accessToken
-                        "0000-0000-0000-0000",         // requestUuid
-                        null,                         // approaches
-                        null,                         // waypointIndices
-                        null,                         // waypointNames
-                        null,                         // waypointTargets
-                        null,                         // walkingOptions
-                        null                          // snappingClosures
-                );
-
-
-                MainActivity.route = route.toBuilder().withRouteOptions(routeOptions).build();
-
-                //Start navigation and close this activity
-                Intent intent = new Intent(RouteActivity.this, MainActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                MainActivity.startRouteNavigation();
-                startActivity(intent);
-                finish();
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                Log.e(TAG, "Route request error: " + errorMessage);
-            }
-        });
+    void startMainActivity() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        MainActivity.startRouteNavigation();
+        this.startActivity(intent);
     }
+
+
 }

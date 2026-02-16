@@ -19,11 +19,9 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -46,23 +44,20 @@ import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.maplibre.geojson.model.Point;
-import org.maplibre.navigation.core.instruction.Instruction;
 import org.maplibre.navigation.core.location.engine.LocationEngine;
 import org.maplibre.navigation.core.milestone.BannerInstructionMilestone;
 import org.maplibre.navigation.core.milestone.Milestone;
 import org.maplibre.navigation.core.milestone.MilestoneEventListener;
 import org.maplibre.navigation.core.models.BannerInstructions;
 import org.maplibre.navigation.core.models.DirectionsRoute;
-import org.maplibre.navigation.core.models.ManeuverModifier;
-import org.maplibre.navigation.core.models.RouteLeg;
 import org.maplibre.navigation.core.models.StepManeuver;
 import org.maplibre.navigation.core.navigation.MapLibreNavigation;
 import org.maplibre.navigation.core.navigation.MapLibreNavigationOptions;
+import org.maplibre.navigation.core.navigation.NavigationEventListener;
 import org.maplibre.navigation.core.navigation.camera.Camera;
-import org.maplibre.navigation.core.navigation.camera.RouteInformation;
 import org.maplibre.navigation.core.navigation.camera.SimpleCamera;
 import org.maplibre.navigation.core.offroute.OffRouteDetector;
+import org.maplibre.navigation.core.offroute.OffRouteListener;
 import org.maplibre.navigation.core.route.FasterRouteDetector;
 import org.maplibre.navigation.core.routeprogress.ProgressChangeListener;
 import org.maplibre.navigation.core.routeprogress.RouteProgress;
@@ -70,41 +65,39 @@ import org.maplibre.navigation.core.snap.SnapToRoute;
 import org.maplibre.navigation.core.utils.RouteUtils;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.oscim.android.MapView;
+import org.oscim.android.theme.AssetsRenderTheme;
 import org.oscim.backend.CanvasAdapter;
-import org.oscim.core.BoundingBox;
 import org.oscim.core.GeoPoint;
-import org.oscim.core.MapPosition;
 import org.oscim.layers.LocationTextureLayer;
 import org.oscim.layers.PathLayer;
 import org.oscim.layers.tile.buildings.BuildingLayer;
 import org.oscim.layers.tile.vector.VectorTileLayer;
 import org.oscim.layers.tile.vector.labeling.LabelLayer;
 import org.oscim.renderer.LocationCallback;
+import org.oscim.theme.ExternalRenderTheme;
 import org.oscim.theme.IRenderTheme;
+import org.oscim.theme.StreamRenderTheme;
+import org.oscim.theme.ThemeFile;
+import org.oscim.theme.ThemeLoader;
 import org.oscim.theme.styles.LineStyle;
-import org.oscim.tiling.source.mapfile.MapFileTileSource;
+import org.oscim.tiling.source.OkHttpEngine;
+import org.oscim.tiling.source.UrlTileSource;
 import org.oscim.theme.internal.VtmThemes;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 
-import kotlin.Unit;
 import kotlin.coroutines.Continuation;
-import kotlin.jvm.functions.Function1;
-import kotlinx.coroutines.channels.ProducerScope;
 import kotlinx.coroutines.flow.Flow;
-import kotlinx.coroutines.flow.FlowKt;
+import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 
 public class MainActivity extends Activity implements SensorEventListener, TextToSpeech.OnInitListener {
     private static final String TAG = "MainActivity";
+    static MainActivity instance;
     static MapView mapView;
     TextView directionDistance;
     TextView primaryInstructionText;
@@ -129,12 +122,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private float mHeading;
     private float mPitch;
     private GeomagneticField mGeomagneticField;
+    static SnapToRoute snapToRoute = new SnapToRoute();
+    private float routeHeading;
     static Location lastLocation = null;
     private double scale = 100000.0;
 
     private static TextToSpeech tts;
     private static boolean initialized = false;
     private static String queuedText;
+    static Mode mode;
 
     private final Handler bluetoothHandler = new Handler(Looper.getMainLooper()) {
         @Override
@@ -188,12 +184,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final int MAP_OFFSET_X = 0;    // pixels to offset horizontally
     private static final int MAP_OFFSET_Y = 80; // pixels to offset vertically (negative moves up)
 
-    private static final int GPS_TIMEOUT_MS = 5000;
+    private static final int GPS_TIMEOUT_MS = 60000;
 
     @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         CustomTrust customTrust = new CustomTrust(getApplicationContext());
         client = customTrust.getClient();
 
@@ -218,9 +215,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         directionDistance = findViewById(R.id.direction_distance);
         directionImage = findViewById(R.id.direction);
         modeImage = findViewById(R.id.mode);
+        modeImage.setVisibility(View.INVISIBLE);
         primaryInstructionText = findViewById(R.id.primary_instruction);
         secondaryInstructionText = findViewById(R.id.secondary_instruction);
         etaText = findViewById(R.id.eta);
+        etaText.setVisibility(View.INVISIBLE);
 
         mapView = findViewById(R.id.mapView);
 
@@ -239,10 +238,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "GlassMaps::LocationWakeLock");
-        Uri mapFilePath = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
+        //Uri mapFilePath = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
         //String mapFilePath = getFilesDir().getPath() + "/Map.map";
         try {
-            openMap(mapFilePath);
+            openMap();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -254,22 +253,39 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 Log.e(TAG, "Bluetooth permission not granted!");
             } else {
                 bluetoothService.start();
+                directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+                primaryInstructionText.setText("Waiting for Bluetooth connection");
             }
         } else {
             Log.i(TAG, "Bluetooth not supported on this device");
         }
     }
-    private void openMap(Uri mapFileUri) {
+    private void openMap() {
         try {
-            if (mapFileUri == null) {
-                Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
-                return;
-            }
+            //if (mapFileUri == null) {
+            //    Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
+            //    return;
+            //}
 
             // Tile source
-            MapFileTileSource tileSource = new MapFileTileSource();
-            FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
-            tileSource.setMapFileInputStream(fis);
+            //MapFileTileSource tileSource = new MapFileTileSource();
+            //FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
+            //tileSource.setMapFileInputStream(fis);
+
+
+            OkHttpClient.Builder builder = new OkHttpClient.Builder() //TODO: Add user agent header
+                    .sslSocketFactory(CustomTrust.sslSocketFactory, CustomTrust.trustManager);
+
+            // Cache the tiles into file system
+            File cacheDirectory = new File(getExternalCacheDir(), "tiles");
+            int cacheSize = 10 * 1024 * 1024; // 10 MB
+            Cache cache = new Cache(cacheDirectory, cacheSize);
+            builder.cache(cache);
+
+            UrlTileSource tileSource = OsmMvtTileSource.builder()
+                    .httpFactory(new OkHttpEngine.OkHttpFactory(builder))
+                    //.locale("en")
+                    .build();
 
             // Vector layer
             VectorTileLayer tileLayer = mapView.map().setBaseMap(tileSource);
@@ -298,7 +314,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             mapView.map().layers().add(locationTextureLayer);
 
             // Render theme
-            theme = mapView.map().setTheme(VtmThemes.DARK);
+            theme = mapView.map().setTheme(new AssetsRenderTheme(getAssets(), "", "vtm/openmaptilesdark.xml"));
 
             mapView.map().viewport().setMinScale(10000);
             mapView.map().viewport().setMaxScale(10000000);
@@ -320,8 +336,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
 
     public static void startRouteNavigation() {
+        Log.i(TAG, "Starting route navigation");
         if (route == null) {
             Log.e(TAG, "No route available for navigation");
+            route();
             return;
         }
         /*try {
@@ -356,13 +374,42 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 return Utils.androidLocationtoMapLibreLocation(lastLocation);
             }
         };
-        MapLibreNavigation navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), new SnapToRoute(), new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
+
+        MapLibreNavigation navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
         navigation.startNavigation(route);
+        instance.modeImage.setVisibility(View.VISIBLE);
+        switch (mode) {
+            case WALK:
+                instance.modeImage.setImageResource(R.drawable.travel_mode_walk);
+            case CYCLE:
+                instance.modeImage.setImageResource(R.drawable.travel_mode_bike);
+            case DRIVE:
+                instance.modeImage.setImageResource(R.drawable.travel_mode_drive);
+        }
+        instance.etaText.setVisibility(View.VISIBLE);
         navigation.addProgressChangeListener(new ProgressChangeListener() {
             @Override
             public void onProgressChange(org.maplibre.navigation.core.location.@NotNull Location location, @NotNull RouteProgress routeProgress) {
                 Log.i(TAG, "Progress update: " + routeProgress);
                 currentProgress = routeProgress;
+                if (currentMilestone instanceof BannerInstructionMilestone) {
+                    BannerInstructions instructions = ((BannerInstructionMilestone) currentMilestone).getBannerInstructions();
+                    if (instructions != null) {
+                        instance.primaryInstructionText.setText(instructions.getPrimary().getText());
+                        if (instructions.getSecondary() != null) {
+                            instance.secondaryInstructionText.setText(instructions.getSecondary().getText());
+                        }
+                        if (instructions.getSub() != null) {
+                            Log.i(TAG, "Subtext: " + instructions.getSub().getText());
+                        }
+                    }
+                }
+                instance.directionDistance.setText(Math.round(routeProgress.getStepDistanceRemaining()) + "m");
+                instance.etaText.setText(Math.round(routeProgress.getDurationRemaining()/60) + " min");
+                if (routeProgress.getLegIndex() != route.getLegs().size() - 1) { // Prevent from running on last leg
+                    StepManeuver currentManeuver = routeProgress.getCurrentLegProgress().getUpComingStep().getManeuver();
+                    instance.directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
+                }
             }
         });
         navigation.addMilestoneEventListener(new MilestoneEventListener() {
@@ -376,6 +423,26 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 currentMilestone = milestone;
             }
         });
+        navigation.addOffRouteListener(new OffRouteListener() {
+            @Override
+            public void userOffRoute(org.maplibre.navigation.core.location.@NotNull Location location) {
+                navigation.stopNavigation();
+                speak("Rerouting.");
+                route();
+            }
+        });
+        navigation.addNavigationEventListener(new NavigationEventListener() {
+            @Override
+            public void onRunning(boolean running) {
+                if (!running) {
+                    currentMilestone = null;
+                    mode = Mode.NONE;
+                    route = null;
+                    instance.modeImage.setVisibility(View.INVISIBLE);
+                    instance.etaText.setVisibility(View.INVISIBLE);
+                }
+            }
+        });
         List<GeoPoint> routePoints = decodePolyline(route.getGeometry());
         PathLayer pathLayer = new PathLayer(mapView.map(), new LineStyle(Color.CYAN, 10));
         for ( GeoPoint p : routePoints) {
@@ -383,6 +450,27 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         mapView.map().layers().add(mapView.map().layers().size() - 2, pathLayer);
         //TODO: Show marker at final destination
+    }
+
+    enum Mode {
+        NONE,
+        WALK,
+        CYCLE,
+        DRIVE
+    }
+    static void route() {
+        String costing = "auto";
+        switch (mode) {
+            case DRIVE:
+                costing = "auto";
+                break;
+            case WALK:
+                costing = "pedestrian";
+                break;
+            case CYCLE:
+                costing = "bicycle";
+        }
+        Utils.getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, costing);
     }
 
     private static List<GeoPoint> decodePolyline(String encoded) {
@@ -600,7 +688,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private final LocationListener locationListener = new LocationListener() {
         @Override
         public void onLocationChanged(@NonNull Location location) {
-            Log.d(TAG, "Location changed: " + location);
+            //Log.d(TAG, "Location changed: " + location);
             double bearing = 0;
             if (lastLocation != null) {
                 // Calculate bearing between last and current location
@@ -619,7 +707,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         dLong = (2.0 * Math.PI + dLong);
 
                 bearing = ((Math.toDegrees(Math.atan2(dLong, dPhi)) + 360.0) % 360.0);
-                Log.d(TAG, "Bearing: " + bearing);
+                //Log.d(TAG, "Bearing: " + bearing);
             }
 
             lastGpsTimestamp = System.currentTimeMillis();
@@ -627,31 +715,23 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             handler.postDelayed(gpsTimeoutRunnable, GPS_TIMEOUT_MS);
 
             updateGeomagneticField(location);
-            updateMapPosition(location);
-            location.setBearing((float) bearing);
+            //location.setBearing((float) bearing);
 
-            KotlinUtils.Companion.sendLocation(Utils.androidLocationtoMapLibreLocation(location));
+            org.maplibre.navigation.core.location.Location mapLibreLocation = Utils.androidLocationtoMapLibreLocation(location);
+            KotlinUtils.Companion.sendLocation(mapLibreLocation);
 
-            if (currentProgress != null && currentMilestone != null) {
-                //Set UI
-                if (currentMilestone instanceof BannerInstructionMilestone) {
-                    BannerInstructions instructions = ((BannerInstructionMilestone) currentMilestone).getBannerInstructions();
-                    if (instructions != null) {
-                        primaryInstructionText.setText(instructions.getPrimary().getText());
-                        if (instructions.getSecondary() != null) {
-                            secondaryInstructionText.setText(instructions.getSecondary().getText());
-                        }
-                        if (instructions.getSub() != null) {
-                            Log.i(TAG, "Subtext: " + instructions.getSub().getText());
-                        }
-                    }
+            if (currentProgress == null && currentMilestone == null) {
+                if (bluetoothConnected) {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
+                    primaryInstructionText.setText("Bluetooth device connected");
+                } else {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+                    primaryInstructionText.setText("Waiting for Bluetooth connection");
                 }
-                directionDistance.setText(Math.round(currentProgress.getStepDistanceRemaining()) + "m");
-                etaText.setText(Math.round(currentProgress.getDurationRemaining()/60) + " min");
-                StepManeuver currentManeuver = currentProgress.getCurrentLegProgress().getCurrentStep().getManeuver();
-                directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
-
+            } else {
+                routeHeading = snapToRoute.getSnappedLocation(mapLibreLocation, currentProgress).getBearing();
             }
+            updateMapPosition(location);
             lastLocation = location;
         }
 
@@ -704,8 +784,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             float magneticHeading = (float) Math.toDegrees(mOrientation[0]);
             mHeading = mod(computeTrueNorth(magneticHeading), 360.0f)
                     - 6;
-            mapView.map().viewport().setRotation(-mHeading);
-            mapView.map().updateMap(true);
+            if (mode == Mode.NONE || mode == Mode.WALK) {
+                mapView.map().viewport().setRotation(-mHeading);
+                mapView.map().updateMap(true);
+            }
         }
     }
 
@@ -719,7 +801,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
 
     private void updateMapPosition(Location location) {
-        Log.i(TAG, "Updating map position to " + location);
+        //Log.i(TAG, "Updating map position to " + location);
         locationTextureLayer.setPosition(location.getLatitude(), location.getLongitude(), location.getAccuracy());
         //mapView.map().animator().animateTo(10, new GeoPoint(location.getLatitude(), location.getLongitude()));
         if (lastLocation == null) {
@@ -727,7 +809,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             return;
         }
         mapView.map().setMapPosition(location.getLatitude(), location.getLongitude(), scale);
-        mapView.map().viewport().setRotation(-mHeading);
+        if (mode == Mode.NONE || mode == Mode.WALK) {
+            mapView.map().viewport().setRotation(-mHeading);
+        } else if (mode == Mode.CYCLE || mode == Mode.DRIVE) {
+            mapView.map().viewport().setRotation(-routeHeading);
+        }
     }
 
     @Override
@@ -821,7 +907,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         lastLocation.getLongitude(),
                         scale
                 );
-                mapView.map().viewport().setRotation(-mHeading);
+                if (mode == Mode.NONE || mode == Mode.WALK) {
+                    mapView.map().viewport().setRotation(-mHeading);
+                } else if (mode == Mode.CYCLE || mode == Mode.DRIVE) {
+                    mapView.map().viewport().setRotation(-routeHeading);
+                }
 
                 //Log.d(TAG, "Scroll detected: displacement=" + displacement + ", delta=" + delta +
                 //        ", velocity=" + velocity + ", newZoom=" + mapView.map().getMapPosition().getScale());

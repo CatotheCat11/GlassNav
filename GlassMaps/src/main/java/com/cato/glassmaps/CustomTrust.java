@@ -30,13 +30,12 @@ public final class CustomTrust {
 
     private final OkHttpClient client;
     private final Context context;
+    static X509TrustManager trustManager;
+    static SSLSocketFactory sslSocketFactory;
 
     public CustomTrust(Context context) {
 
         this.context = context;
-
-        X509TrustManager trustManager;
-        SSLSocketFactory sslSocketFactory;
 
         // Read certs and create trust manager, then build an SSLContext using Conscrypt for TLSv1.3
         try (InputStream certStream = trustedCertificatesInputStream()) {
