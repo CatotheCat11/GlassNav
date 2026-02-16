@@ -19,9 +19,11 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -83,8 +85,10 @@ import org.oscim.theme.styles.LineStyle;
 import org.oscim.tiling.source.OkHttpEngine;
 import org.oscim.tiling.source.UrlTileSource;
 import org.oscim.theme.internal.VtmThemes;
+import org.oscim.tiling.source.mapfile.MapFileTileSource;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -141,24 +145,28 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     byte[] payload = (byte[]) msg.obj;
                     String readMessage = new String(payload, 0, msg.arg1);
                     Log.i(TAG, "Got bluetooth message: " + readMessage);
+                    String jsonString = readMessage.trim();
+                    if (jsonString.startsWith("{") && !jsonString.endsWith("}")) { // Sometimes the } is lost during transmission. This adds it back. TODO: this should be fixed by figuring out why it's missing in the first place
+                        jsonString = jsonString + "}";
+                    }
                     try {
-                        JSONObject jsonMessage = new JSONObject(readMessage);
-                        if (jsonMessage.getString("type").equals("location")) {
+                        JSONObject jsonMessage = new JSONObject(jsonString);
+                        if (jsonMessage.getString("t").equals("l")) {
                             Location btLocation = new Location("Bluetooth");
-                            btLocation.setLatitude(jsonMessage.getDouble("latitude"));
-                            btLocation.setLongitude(jsonMessage.getDouble("longitude"));
-                            btLocation.setAltitude(jsonMessage.getDouble("altitude"));
-                            btLocation.setSpeed((float) jsonMessage.getDouble("speed"));
-                            btLocation.setBearing((float) jsonMessage.getDouble("bearing"));
-                            Log.d(TAG, "Bluetooth location received: " + btLocation.toString());
+                            btLocation.setLatitude(jsonMessage.getDouble("la"));
+                            btLocation.setLongitude(jsonMessage.getDouble("lo"));
+                            btLocation.setAltitude(jsonMessage.getDouble("a"));
+                            btLocation.setSpeed((float) jsonMessage.getDouble("s"));
+                            btLocation.setBearing((float) jsonMessage.getDouble("b"));
+                            Log.d(TAG, "Bluetooth location received: " + btLocation);
                             locationListener.onLocationChanged(btLocation);
                             // Stop GPS updates when Bluetooth is connected
                             if (locationManager != null) {
                                 locationManager.removeUpdates(locationListener);
                             }
                             handler.removeCallbacks(gpsTimeoutRunnable);
-                        } else if (jsonMessage.getString("type").equals("search")) {
-                            Utils.selectedInfo = new Utils.LocationInfo(jsonMessage.getString("name"), jsonMessage.getString("displayName"), new GeoPoint(jsonMessage.getDouble("latitude"), jsonMessage.getDouble("longitude")), (float) jsonMessage.getDouble("distance"));
+                        } else if (jsonMessage.getString("t").equals("s")) {
+                            Utils.selectedInfo = new Utils.LocationInfo(jsonMessage.getString("n"), jsonMessage.getString("dn"), new GeoPoint(jsonMessage.getDouble("la"), jsonMessage.getDouble("lo")), (float) jsonMessage.getDouble("di"));
                             Intent routeIntent = new Intent(MainActivity.this, RouteActivity.class);
                             startActivity(routeIntent);
                         }
@@ -238,8 +246,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "GlassMaps::LocationWakeLock");
-        //Uri mapFilePath = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
-        //String mapFilePath = getFilesDir().getPath() + "/Map.map";
         try {
             openMap();
         } catch (Exception e) {
@@ -262,33 +268,34 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
     private void openMap() {
         try {
-            //if (mapFileUri == null) {
-            //    Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
-            //    return;
-            //}
+            VectorTileLayer tileLayer;
+            Uri mapFileUri = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
 
-            // Tile source
-            //MapFileTileSource tileSource = new MapFileTileSource();
-            //FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
-            //tileSource.setMapFileInputStream(fis);
+            if (mapFileUri == null) {
+                Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
+                Log.i(TAG, "Falling back to online tile source");
 
+                OkHttpClient.Builder builder = new OkHttpClient.Builder() //TODO: Add user agent header
+                        .sslSocketFactory(CustomTrust.sslSocketFactory, CustomTrust.trustManager);
 
-            OkHttpClient.Builder builder = new OkHttpClient.Builder() //TODO: Add user agent header
-                    .sslSocketFactory(CustomTrust.sslSocketFactory, CustomTrust.trustManager);
+                // Cache the tiles into file system
+                File cacheDirectory = new File(getExternalCacheDir(), "tiles");
+                int cacheSize = 10 * 1024 * 1024; // 10 MB
+                Cache cache = new Cache(cacheDirectory, cacheSize);
+                builder.cache(cache);
 
-            // Cache the tiles into file system
-            File cacheDirectory = new File(getExternalCacheDir(), "tiles");
-            int cacheSize = 10 * 1024 * 1024; // 10 MB
-            Cache cache = new Cache(cacheDirectory, cacheSize);
-            builder.cache(cache);
+                UrlTileSource tileSource = OsmMvtTileSource.builder()
+                        .httpFactory(new OkHttpEngine.OkHttpFactory(builder))
+                        //.locale("en")
+                        .build();
 
-            UrlTileSource tileSource = OsmMvtTileSource.builder()
-                    .httpFactory(new OkHttpEngine.OkHttpFactory(builder))
-                    //.locale("en")
-                    .build();
-
-            // Vector layer
-            VectorTileLayer tileLayer = mapView.map().setBaseMap(tileSource);
+                tileLayer = mapView.map().setBaseMap(tileSource);
+            } else {
+                MapFileTileSource tileSource = new MapFileTileSource();
+                FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
+                tileSource.setMapFileInputStream(fis);
+                tileLayer = mapView.map().setBaseMap(tileSource);
+            }
 
             // Building layer
             mapView.map().layers().add(new BuildingLayer(mapView.map(), tileLayer));

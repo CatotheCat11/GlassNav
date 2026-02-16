@@ -1,24 +1,55 @@
 package com.cato.glassmapscompanion
 
 import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.Message
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.cato.glassmapscompanion.MainActivity.Companion.bluetoothConnected
+import org.json.JSONObject
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
 
 
-class BluetoothMapsService(private val mHandler: Handler, private val mAdapter: BluetoothAdapter, private val context: Context) {
+class BluetoothMapsService(): Service() {
+    override fun onBind(intent: Intent?): IBinder? = null
+
     companion object {
+        fun start() {
+        }
+
+        fun connect(device: BluetoothDevice) {
+            Log.d(TAG, "Connecting to device: ${device.name}")
+            mConnectThread = instance?.ConnectThread(device)
+            mConnectThread?.start()
+        }
+
+        fun write(bytes: ByteArray?) {
+            mConnectedThread?.write(bytes)
+        }
+
         const val TAG: String = "BluetoothMapsService"
         const val NAME: String = "GlassMapsBluetooth"
         const val MESSAGE_CONNECT: Int = -1
@@ -27,15 +58,114 @@ class BluetoothMapsService(private val mHandler: Handler, private val mAdapter: 
         const val MESSAGE_ERROR: Int = 2
         private var mConnectThread: ConnectThread? = null
         private var mConnectedThread: ConnectedThread? = null
+        private var mAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
         val MY_UUID: UUID = UUID.fromString("684ebeac-9863-4145-8e66-efb89c816434")
+        private const val CHANNEL_ID = "location_channel"
+        private const val NOTIFICATION_ID = 1
+        var lastLocation: Location? = null
+
+        var instance: BluetoothMapsService? = null
     }
+
+    val locationManager: LocationManager? by lazy {
+        getSystemService(LOCATION_SERVICE) as? LocationManager
+    }
+
+    private var locationListener = LocationListener { location: Location ->
+        Log.i(TAG, "Location update: $location")
+        lastLocation = location
+        if (bluetoothConnected.value) {
+            val resultObj = JSONObject()
+            // Using short names to reduce data size for Bluetooth transmission
+            resultObj.put("t", "l")
+            resultObj.put("la", location.latitude)
+            resultObj.put("lo", location.longitude)
+            resultObj.put("a", location.altitude)
+            resultObj.put("s", location.speed)
+            resultObj.put("b", location.bearing)
+            Companion.write(resultObj.toString().toByteArray())
+        }
+    }
+
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this;
+        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), serviceTypes);
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
+        startLocationUpdates()
+    }
+
+    private fun buildNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Glass Companion Running")
+            .setContentText("Streaming location to Google Glass")
+            //.setSmallIcon(R.drawable.ic_location)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Location Service",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun startLocationUpdates() {
+        Log.i(TAG, "Starting location updates")
+        locationManager?.requestLocationUpdates(
+            LocationManager.GPS_PROVIDER,
+            1000,
+            0.5f,
+            locationListener,
+            Looper.getMainLooper()
+        )
+    }
+
+    var bluetoothHandler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                MESSAGE_CONNECT -> {
+                    // Get the message content from the handler message
+                    Log.d(TAG, "Connected")
+                    bluetoothConnected.value = true
+                }
+                MESSAGE_READ -> {
+                    // Get the message content from the handler message
+                    val readMessage = msg.obj as String
+                    Log.d(TAG, "Received: $readMessage")
+                }
+                BluetoothMapsService.MESSAGE_ERROR -> {
+                    // Get the message content from the handler message
+                    if (msg.obj != null) {
+                        val readMessage = msg.obj as String
+                        Log.e(TAG, "Received: $readMessage")
+                        bluetoothConnected.value = false
+                    }
+                }
+            }
+        }
+    };
+
+
 
     private inner class ConnectThread(device: BluetoothDevice) : Thread() {
 
         private val mmSocket: BluetoothSocket? by lazy(LazyThreadSafetyMode.NONE) @RequiresPermission(
             Manifest.permission.BLUETOOTH_CONNECT
         ) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this@BluetoothMapsService, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                 Log.i(TAG, "BLUETOOTH_CONNECT permission granted")
                 device.createRfcommSocketToServiceRecord(MY_UUID)
             } else {
@@ -57,20 +187,20 @@ class BluetoothMapsService(private val mHandler: Handler, private val mAdapter: 
                 } catch (e: IOException) {
                     Log.e(TAG, "Could not connect to the client socket", e)
                     // Send a failure message back to the activity.
-                    val writeErrorMsg = mHandler.obtainMessage(MESSAGE_ERROR)
+                    val writeErrorMsg = bluetoothHandler.obtainMessage(MESSAGE_ERROR)
                     val bundle = Bundle().apply {
                         putString("error", "Couldn't connect to Glass")
                     }
                     writeErrorMsg.data = bundle
-                    mHandler.sendMessage(writeErrorMsg)
+                    bluetoothHandler.sendMessage(writeErrorMsg)
                     return
                 }
 
                 // The connection attempt succeeded. Perform work associated with
                 // the connection in a separate thread.
                 Log.i(TAG, "Bluetooth connected to device: ${socket.remoteDevice.name}")
-                val connectMsg = mHandler.obtainMessage(MESSAGE_CONNECT)
-                mHandler.sendMessage(connectMsg)
+                val connectMsg = bluetoothHandler.obtainMessage(MESSAGE_CONNECT)
+                bluetoothHandler.sendMessage(connectMsg)
                 mConnectedThread = ConnectedThread(socket)
                 mConnectedThread?.start()
             }
@@ -121,7 +251,7 @@ class BluetoothMapsService(private val mHandler: Handler, private val mAdapter: 
                 }
 
                 // Send the obtained bytes to the UI activity.
-                val readMsg = mHandler.obtainMessage(
+                val readMsg = bluetoothHandler.obtainMessage(
                     MESSAGE_READ, numBytes, -1,
                     mmBuffer)
                 readMsg.sendToTarget()
@@ -129,25 +259,25 @@ class BluetoothMapsService(private val mHandler: Handler, private val mAdapter: 
         }
 
         // Call this from the main activity to send data to the remote device.
-        fun write(bytes: ByteArray) {
+        fun write(bytes: ByteArray?) {
             try {
-                Log.i(TAG, "Sending data: ${bytes.size} bytes")
+                Log.i(TAG, "Sending data: ${bytes?.size} bytes")
                 mmOutStream.write(bytes)
             } catch (e: IOException) {
                 Log.e(TAG, "Error occurred when sending data", e)
 
                 // Send a failure message back to the activity.
-                val writeErrorMsg = mHandler.obtainMessage(MESSAGE_ERROR)
+                val writeErrorMsg = bluetoothHandler.obtainMessage(MESSAGE_ERROR)
                 val bundle = Bundle().apply {
                     putString("error", "Couldn't send data to the other device")
                 }
                 writeErrorMsg.data = bundle
-                mHandler.sendMessage(writeErrorMsg)
+                bluetoothHandler.sendMessage(writeErrorMsg)
                 return
             }
 
             // Share the sent message with the UI activity.
-            val writtenMsg = mHandler.obtainMessage(
+            val writtenMsg = bluetoothHandler.obtainMessage(
                 MESSAGE_WRITE, -1, -1, mmBuffer)
             writtenMsg.sendToTarget()
         }
