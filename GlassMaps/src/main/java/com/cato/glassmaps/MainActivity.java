@@ -89,6 +89,8 @@ import org.oscim.tiling.source.mapfile.MapFileTileSource;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -146,32 +148,24 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     String readMessage = new String(payload, 0, msg.arg1);
                     Log.i(TAG, "Got bluetooth message: " + readMessage);
                     String jsonString = readMessage.trim();
-                    if (jsonString.startsWith("{") && !jsonString.endsWith("}")) { // Sometimes the } is lost during transmission. This adds it back. TODO: this should be fixed by figuring out why it's missing in the first place
-                        jsonString = jsonString + "}";
-                    }
-                    try {
-                        JSONObject jsonMessage = new JSONObject(jsonString);
-                        if (jsonMessage.getString("t").equals("l")) {
-                            Location btLocation = new Location("Bluetooth");
-                            btLocation.setLatitude(jsonMessage.getDouble("la"));
-                            btLocation.setLongitude(jsonMessage.getDouble("lo"));
-                            btLocation.setAltitude(jsonMessage.getDouble("a"));
-                            btLocation.setSpeed((float) jsonMessage.getDouble("s"));
-                            btLocation.setBearing((float) jsonMessage.getDouble("b"));
-                            Log.d(TAG, "Bluetooth location received: " + btLocation);
-                            locationListener.onLocationChanged(btLocation);
-                            // Stop GPS updates when Bluetooth is connected
-                            if (locationManager != null) {
-                                locationManager.removeUpdates(locationListener);
-                            }
-                            handler.removeCallbacks(gpsTimeoutRunnable);
-                        } else if (jsonMessage.getString("t").equals("s")) {
+                    if (jsonString.startsWith("{")) {
+                        try {
+                            JSONObject jsonMessage = new JSONObject(jsonString);
                             Utils.selectedInfo = new Utils.LocationInfo(jsonMessage.getString("n"), jsonMessage.getString("dn"), new GeoPoint(jsonMessage.getDouble("la"), jsonMessage.getDouble("lo")), (float) jsonMessage.getDouble("di"));
                             Intent routeIntent = new Intent(MainActivity.this, RouteActivity.class);
                             startActivity(routeIntent);
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
                         }
-                    } catch (JSONException e) {
-                        throw new RuntimeException(e);
+                    } else {
+                        Location btLocation = locationFromBytes(payload);
+                        Log.d(TAG, "Bluetooth location received: " + btLocation);
+                        locationListener.onLocationChanged(btLocation);
+                        // Stop GPS updates when Bluetooth is connected
+                        if (locationManager != null) {
+                            locationManager.removeUpdates(locationListener);
+                        }
+                        handler.removeCallbacks(gpsTimeoutRunnable);
                     }
                 } catch (ClassCastException e) {
                     Log.e(TAG, "Unexpected MESSAGE_READ payload type", e);
@@ -603,7 +597,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
     }*/
 
-    /*private Location locationFromBytes(byte[] data) {
+    private Location locationFromBytes(byte[] data) {
         try {
             ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN);
             double lat = bb.getDouble();      // bytes 0..7
@@ -624,7 +618,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             Log.e(TAG, "Failed to parse Bluetooth location bytes", e);
             return null;
         }
-    }*/
+    }
 
     private void getNetworkLocationUpdates() {
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);

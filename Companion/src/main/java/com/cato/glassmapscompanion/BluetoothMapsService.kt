@@ -30,6 +30,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.util.UUID
 
 
@@ -75,15 +76,22 @@ class BluetoothMapsService(): Service() {
         Log.i(TAG, "Location update: $location")
         lastLocation = location
         if (bluetoothConnected.value) {
-            val resultObj = JSONObject()
-            // Using short names to reduce data size for Bluetooth transmission
-            resultObj.put("t", "l")
-            resultObj.put("la", location.latitude)
-            resultObj.put("lo", location.longitude)
-            resultObj.put("a", location.altitude)
-            resultObj.put("s", location.speed)
-            resultObj.put("b", location.bearing)
-            Companion.write(resultObj.toString().toByteArray())
+            val latBytes =
+                ByteBuffer.allocate(8).putDouble(location.latitude).array()
+            val lonBytes =
+                ByteBuffer.allocate(8).putDouble(location.longitude).array()
+            val altBytes =
+                ByteBuffer.allocate(8).putDouble(location.altitude).array()
+            val speedBytes = ByteBuffer.allocate(4).putFloat(location.speed).array()
+            val bearingBytes =
+                ByteBuffer.allocate(4).putFloat(location.bearing).array()
+            val locationData = ByteArray(32)
+            System.arraycopy(latBytes, 0, locationData, 0, 8)
+            System.arraycopy(lonBytes, 0, locationData, 8, 8)
+            System.arraycopy(altBytes, 0, locationData, 16, 8)
+            System.arraycopy(speedBytes, 0, locationData, 24, 4)
+            System.arraycopy(bearingBytes, 0, locationData, 28, 4)
+            Companion.write(locationData)
         }
     }
 
