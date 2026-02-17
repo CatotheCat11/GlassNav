@@ -62,6 +62,7 @@ import org.maplibre.navigation.core.offroute.OffRouteDetector;
 import org.maplibre.navigation.core.offroute.OffRouteListener;
 import org.maplibre.navigation.core.route.FasterRouteDetector;
 import org.maplibre.navigation.core.routeprogress.ProgressChangeListener;
+import org.maplibre.navigation.core.routeprogress.RouteLegProgress;
 import org.maplibre.navigation.core.routeprogress.RouteProgress;
 import org.maplibre.navigation.core.snap.SnapToRoute;
 import org.maplibre.navigation.core.utils.RouteUtils;
@@ -70,6 +71,7 @@ import org.oscim.android.MapView;
 import org.oscim.android.theme.AssetsRenderTheme;
 import org.oscim.backend.CanvasAdapter;
 import org.oscim.core.GeoPoint;
+import org.oscim.layers.Layer;
 import org.oscim.layers.LocationTextureLayer;
 import org.oscim.layers.PathLayer;
 import org.oscim.layers.tile.buildings.BuildingLayer;
@@ -143,6 +145,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         public void handleMessage(@NonNull android.os.Message msg) {
             if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_READ) {
                 bluetoothConnected = true;
+                if (mode == Mode.NONE) {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
+                    primaryInstructionText.setText("Connected to Bluetooth device");
+                }
                 try {
                     byte[] payload = (byte[]) msg.obj;
                     String readMessage = new String(payload, 0, msg.arg1);
@@ -172,6 +178,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
             } else if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_ERROR) {
                 bluetoothConnected = false;
+                if (mode == Mode.NONE) {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+                    primaryInstructionText.setText("Waiting for Bluetooth connection");
+                }
                 Log.e(TAG, "Bluetooth error: " + msg.obj);
                 Log.i(TAG, "Restarting GPS updates");
                 startLocationUpdates();
@@ -383,10 +393,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         switch (mode) {
             case WALK:
                 instance.modeImage.setImageResource(R.drawable.travel_mode_walk);
+                break;
             case CYCLE:
                 instance.modeImage.setImageResource(R.drawable.travel_mode_bike);
+                break;
             case DRIVE:
                 instance.modeImage.setImageResource(R.drawable.travel_mode_drive);
+                break;
         }
         instance.etaText.setVisibility(View.VISIBLE);
         navigation.addProgressChangeListener(new ProgressChangeListener() {
@@ -408,8 +421,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
                 instance.directionDistance.setText(Math.round(routeProgress.getStepDistanceRemaining()) + "m");
                 instance.etaText.setText(Math.round(routeProgress.getDurationRemaining()/60) + " min");
-                if (routeProgress.getLegIndex() != route.getLegs().size() - 1) { // Prevent from running on last leg
-                    StepManeuver currentManeuver = routeProgress.getCurrentLegProgress().getUpComingStep().getManeuver();
+                RouteLegProgress currentLegProgress = routeProgress.getCurrentLegProgress();
+                if (currentLegProgress.getUpComingStep() != null) {
+                    StepManeuver currentManeuver = currentLegProgress.getUpComingStep().getManeuver();
                     instance.directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
                 }
             }
@@ -461,6 +475,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         DRIVE
     }
     static void route() {
+        for (Layer layer: mapView.map().layers()) {
+            if (layer instanceof PathLayer) {
+                mapView.map().layers().remove(layer);
+            }
+        }
         String costing = "auto";
         switch (mode) {
             case DRIVE:
@@ -722,15 +741,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             org.maplibre.navigation.core.location.Location mapLibreLocation = Utils.androidLocationtoMapLibreLocation(location);
             KotlinUtils.Companion.sendLocation(mapLibreLocation);
 
-            if (currentProgress == null && currentMilestone == null) {
-                if (bluetoothConnected) {
-                    directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
-                    primaryInstructionText.setText("Bluetooth device connected");
-                } else {
-                    directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
-                    primaryInstructionText.setText("Waiting for Bluetooth connection");
-                }
-            } else {
+            if (currentProgress != null && currentMilestone != null) {
                 routeHeading = snapToRoute.getSnappedLocation(mapLibreLocation, currentProgress).getBearing();
             }
             updateMapPosition(location);
