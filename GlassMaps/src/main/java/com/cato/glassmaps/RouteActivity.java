@@ -35,9 +35,20 @@ public class RouteActivity extends Activity {
     private CardScrollView mCardScrollView;
     private ExampleCardScrollAdapter mAdapter;
     private Utils.LocationInfo locationInfo;
+    private boolean saved = false;
     private final static String TAG = "RouteActivity";
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            JSONArray placesArray = new JSONArray(getSharedPreferences("places", Context.MODE_PRIVATE).getString("places", "[]"));
+            for (int i = 0; i < placesArray.length(); i++) {
+                if (placesArray.getJSONObject(i).getString("display_name").equals(Utils.selectedInfo.displayName)) {
+                    saved = true;
+                }
+            }
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
         mCards = new ArrayList<>();
         createCards();
         mCardScrollView = new CardScrollView(this);
@@ -46,7 +57,6 @@ public class RouteActivity extends Activity {
         mCardScrollView.activate();
         setupClickListener();
         setContentView(mCardScrollView);
-        //TODO: Add user selection for costing
     }
 
     private void createCards(){
@@ -61,8 +71,13 @@ public class RouteActivity extends Activity {
                 .setText("Start cycling"));
         mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
                 .setText("Start driving"));
-        mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setText("Save"));
+        if (saved) {
+            mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
+                    .setText("Unsave"));
+        } else {
+            mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
+                    .setText("Save"));
+        }
 
     }
     private class ExampleCardScrollAdapter extends CardScrollAdapter {
@@ -111,7 +126,6 @@ public class RouteActivity extends Activity {
                     startActivity(intent);
                     finish();
                 }*/
-                //TODO: Set MainActivity mode (walking, cycling, driving)
                 if (position == 1) { // Start walking
                     MainActivity.mode = MainActivity.Mode.WALK;
                     startMainActivity();
@@ -122,21 +136,45 @@ public class RouteActivity extends Activity {
                     MainActivity.mode = MainActivity.Mode.DRIVE;
                     startMainActivity();
                 } else if (position == 4) { // Save TODO: Add ability to unsave and indicate that save was successful
-                    SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    try {
-                        JSONArray placesArray = new JSONArray(sharedPreferences.getString("places", "[]"));
-                        JSONObject place = new JSONObject();
-                        place.put("name", Utils.selectedInfo.name);
-                        place.put("display_name", Utils.selectedInfo.displayName);
-                        place.put("lat", Utils.selectedInfo.location.getLatitude());
-                        place.put("lon", Utils.selectedInfo.location.getLongitude());
-                        placesArray.put(place);
-                        editor.putString("places", placesArray.toString());
-                        editor.apply();
-                        Log.i(TAG, "Saved a place");
-                    } catch (JSONException e) {
-                        throw new RuntimeException(e);
+                    if (saved) { // Unsave
+                        SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        try {
+                            JSONArray placesArray = new JSONArray(sharedPreferences.getString("places", "[]"));
+                            for (int i = 0; i < placesArray.length(); i++) {
+                                if (placesArray.getJSONObject(i).getString("display_name").equals(Utils.selectedInfo.displayName)) {
+                                    placesArray.remove(i);
+                                }
+                            }
+                            editor.putString("places", placesArray.toString());
+                            editor.apply();
+                            Log.i(TAG, "Unsaved a place");
+                            saved = false;
+                            mCards.get(4).setText("Save");
+                            mAdapter.notifyDataSetChanged();
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else { // Save
+                        SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        try {
+                            JSONArray placesArray = new JSONArray(sharedPreferences.getString("places", "[]"));
+                            JSONObject place = new JSONObject();
+                            place.put("name", Utils.selectedInfo.name);
+                            place.put("display_name", Utils.selectedInfo.displayName);
+                            place.put("lat", Utils.selectedInfo.location.getLatitude());
+                            place.put("lon", Utils.selectedInfo.location.getLongitude());
+                            placesArray.put(place);
+                            editor.putString("places", placesArray.toString());
+                            editor.apply();
+                            Log.i(TAG, "Saved a place");
+                            saved = true;
+                            mCards.get(4).setText("Unsave");
+                            mAdapter.notifyDataSetChanged();
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }
             }
