@@ -64,19 +64,23 @@ public class RouteActivity extends Activity {
                 .setText(Utils.selectedInfo.displayName));
         /*mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
                 .setText("Show route overview"));*/
-        //TODO: Add icons
         mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setText("Start walking"));
+                .setText("Start walking")
+                .setIcon(R.drawable.ic_menu_walk));
         mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setText("Start cycling"));
+                .setText("Start cycling")
+                .setIcon(R.drawable.ic_menu_bike));
         mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setText("Start driving"));
+                .setText("Start driving")
+                .setIcon(R.drawable.ic_menu_drive));
         if (saved) {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                    .setText("Unsave"));
+                    .setText("Unsave")
+                    .setIcon(R.drawable.ic_bookmark_remove));
         } else {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                    .setText("Save"));
+                    .setText("Save")
+                    .setIcon(R.drawable.ic_bookmark_add));
         }
 
     }
@@ -135,7 +139,7 @@ public class RouteActivity extends Activity {
                 } else if (position == 3) { // Start driving
                     MainActivity.mode = MainActivity.Mode.DRIVE;
                     startMainActivity();
-                } else if (position == 4) { // Save TODO: Add ability to unsave and indicate that save was successful
+                } else if (position == 4) {
                     if (saved) { // Unsave
                         SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
                         SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -151,6 +155,7 @@ public class RouteActivity extends Activity {
                             Log.i(TAG, "Unsaved a place");
                             saved = false;
                             mCards.get(4).setText("Save");
+                            mCards.get(4).setIcon(R.drawable.ic_bookmark_add);
                             mAdapter.notifyDataSetChanged();
                         } catch (JSONException e) {
                             throw new RuntimeException(e);
@@ -171,7 +176,9 @@ public class RouteActivity extends Activity {
                             Log.i(TAG, "Saved a place");
                             saved = true;
                             mCards.get(4).setText("Unsave");
+                            mCards.get(4).setIcon(R.drawable.ic_bookmark_remove);
                             mAdapter.notifyDataSetChanged();
+                            am.playSoundEffect(Sounds.SUCCESS);
                         } catch (JSONException e) {
                             throw new RuntimeException(e);
                         }
