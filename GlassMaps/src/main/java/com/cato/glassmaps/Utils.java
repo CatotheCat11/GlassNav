@@ -77,6 +77,7 @@ public class Utils {
             request.put("format", "osrm");
             request.put("banner_instructions", true);
             request.put("voice_instructions", true);
+            request.put("language", "en-US");
             Log.i(TAG, "Route request: " + request.toString());
         } catch (JSONException e) {
             Log.e(TAG, "An error occurred: " + e);
