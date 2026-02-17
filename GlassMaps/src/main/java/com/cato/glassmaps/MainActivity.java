@@ -263,11 +263,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private void openMap() {
         try {
             VectorTileLayer tileLayer;
-            Uri mapFileUri = Uri.fromFile(new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map"));
+            File mapFile = new File(Environment.getExternalStorageDirectory().getPath() + "/Map.map");
 
-            if (mapFileUri == null) {
-                Log.e(TAG, "Opening map file failed: " + mapFileUri.toString());
-                Log.i(TAG, "Falling back to online tile source");
+            if (!mapFile.isFile()) {
+                Log.i(TAG, "Map file doesn't exist, falling back to online tile source");
 
                 OkHttpClient.Builder builder = new OkHttpClient.Builder() //TODO: Add user agent header
                         .sslSocketFactory(CustomTrust.sslSocketFactory, CustomTrust.trustManager);
@@ -284,11 +283,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         .build();
 
                 tileLayer = mapView.map().setBaseMap(tileSource);
+
+                theme = mapView.map().setTheme(new AssetsRenderTheme(getAssets(), "", "vtm/openmaptilesdark.xml"));
             } else {
+                Log.i(TAG, "Loading map from local file");
+                Uri mapFileUri = Uri.fromFile(mapFile);
                 MapFileTileSource tileSource = new MapFileTileSource();
                 FileInputStream fis = (FileInputStream) getContentResolver().openInputStream(mapFileUri);
                 tileSource.setMapFileInputStream(fis);
                 tileLayer = mapView.map().setBaseMap(tileSource);
+                theme = mapView.map().setTheme(VtmThemes.DARK);
             }
 
             // Building layer
@@ -313,9 +317,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
             });
             mapView.map().layers().add(locationTextureLayer);
-
-            // Render theme
-            theme = mapView.map().setTheme(new AssetsRenderTheme(getAssets(), "", "vtm/openmaptilesdark.xml"));
 
             mapView.map().viewport().setMinScale(10000);
             mapView.map().viewport().setMaxScale(10000000);
