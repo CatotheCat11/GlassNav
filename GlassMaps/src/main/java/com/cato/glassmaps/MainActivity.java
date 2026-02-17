@@ -413,6 +413,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         instance.primaryInstructionText.setText(instructions.getPrimary().getText());
                         if (instructions.getSecondary() != null) {
                             instance.secondaryInstructionText.setText(instructions.getSecondary().getText());
+                        } else {
+                            instance.secondaryInstructionText.setText("");
                         }
                         if (instructions.getSub() != null) {
                             Log.i(TAG, "Subtext: " + instructions.getSub().getText());
