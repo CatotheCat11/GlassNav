@@ -2,6 +2,7 @@ package com.cato.glassmaps;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -129,6 +130,13 @@ public class Utils {
             }
         });
     }
+
+    static boolean isNetworkConnected(Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
+    }
+
 
     static Integer getImageFromManuever(StepManeuver maneuver) {
         Integer image = R.drawable.da_turn_unknown;

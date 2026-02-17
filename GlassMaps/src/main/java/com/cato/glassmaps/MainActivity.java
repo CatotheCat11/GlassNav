@@ -442,9 +442,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         navigation.addOffRouteListener(new OffRouteListener() {
             @Override
             public void userOffRoute(org.maplibre.navigation.core.location.@NotNull Location location) {
-                navigation.stopNavigation();
-                speak("Rerouting.");
-                route();
+                if (Utils.isNetworkConnected(instance)) {
+                    navigation.stopNavigation();
+                    speak("Rerouting.");
+                    route();
+                }
             }
         });
         navigation.addNavigationEventListener(new NavigationEventListener() {
