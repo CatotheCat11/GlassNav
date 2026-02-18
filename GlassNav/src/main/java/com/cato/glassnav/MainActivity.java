@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.hardware.GeomagneticField;
 import android.hardware.Sensor;
@@ -19,6 +20,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
@@ -38,6 +40,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
 
+import com.google.android.glass.media.Sounds;
 import com.google.android.glass.touchpad.Gesture;
 import com.google.android.glass.touchpad.GestureDetector;
 
@@ -67,12 +70,19 @@ import org.maplibre.navigation.core.snap.SnapToRoute;
 import org.maplibre.navigation.core.utils.RouteUtils;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.oscim.android.MapView;
+import org.oscim.android.canvas.AndroidBitmap;
 import org.oscim.android.theme.AssetsRenderTheme;
 import org.oscim.backend.CanvasAdapter;
+import org.oscim.backend.canvas.Bitmap;
 import org.oscim.core.GeoPoint;
 import org.oscim.layers.Layer;
 import org.oscim.layers.LocationTextureLayer;
 import org.oscim.layers.PathLayer;
+import org.oscim.layers.marker.ItemizedLayer;
+import org.oscim.layers.marker.MarkerInterface;
+import org.oscim.layers.marker.MarkerItem;
+import org.oscim.layers.marker.MarkerLayer;
+import org.oscim.layers.marker.MarkerSymbol;
 import org.oscim.layers.tile.buildings.BuildingLayer;
 import org.oscim.layers.tile.vector.VectorTileLayer;
 import org.oscim.layers.tile.vector.labeling.LabelLayer;
@@ -112,6 +122,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     static Milestone currentMilestone;
     private GestureDetector mGestureDetector;
     private LocationTextureLayer locationTextureLayer;
+    private static ItemizedLayer markerLayer;
     private IRenderTheme theme;
     private LocationManager locationManager;
     private PowerManager powerManager;
@@ -325,11 +336,26 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
             mapView.map().layers().add(locationTextureLayer);
 
+            Bitmap bitmapPoi = new AndroidBitmap(BitmapFactory.decodeResource(getResources(), R.drawable.nav_markers));
+            MarkerSymbol symbol = new MarkerSymbol(bitmapPoi, MarkerSymbol.HotspotPlace.BOTTOM_CENTER);
+            markerLayer = new ItemizedLayer(mapView.map(), new ArrayList<>(), symbol, new ItemizedLayer.OnItemGestureListener<>() {
+                @Override
+                public boolean onItemSingleTapUp(int i, MarkerInterface markerInterface) {
+                    return false;
+                }
+
+                @Override
+                public boolean onItemLongPress(int i, MarkerInterface markerInterface) {
+                    return false;
+                }
+            });
+            mapView.map().layers().add(markerLayer);
+
             mapView.map().viewport().setMinScale(10000);
             mapView.map().viewport().setMaxScale(10000000);
             mapView.map().viewport().setMaxTilt(45.0f);
             mapView.map().viewport().setMinTilt(45.0f);
-            mapView.map().viewport().setMapViewCenterY(0.3f); //TODO: Set this properly for Google Glass screen
+            mapView.map().viewport().setMapViewCenterY(0.7f); //TODO: Set this properly for Google Glass screen
 
             // Request location updates
             locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
@@ -425,6 +451,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     StepManeuver currentManeuver = currentLegProgress.getUpComingStep().getManeuver();
                     instance.directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
                 }
+                if (currentMilestone != null && navigation.getRouteUtils().isArrivalEvent(routeProgress, currentMilestone)) {
+                    Log.i(TAG, "Arrival milestone reached");
+                    stopNavigation();
+                }
             }
         });
 
@@ -456,30 +486,18 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
             }
         });
-        navigation.addNavigationEventListener(new NavigationEventListener() {
-            @Override
-            public void onRunning(boolean running) {
-                if (!running) {
-                    currentMilestone = null;
-                    mode = Mode.NONE;
-                    route = null;
-                    instance.modeImage.setVisibility(View.INVISIBLE);
-                    instance.etaText.setVisibility(View.INVISIBLE);
-                    for (Layer layer: mapView.map().layers()) {
-                        if (layer instanceof PathLayer) {
-                            mapView.map().layers().remove(layer);
-                        }
-                    }
-                }
-            }
-        });
         List<GeoPoint> routePoints = decodePolyline(route.getGeometry());
+        for (Layer layer: mapView.map().layers()) { // If rerouting, remove previous route from map
+            if (layer instanceof PathLayer) {
+                mapView.map().layers().remove(layer);
+            }
+        }
         PathLayer pathLayer = new PathLayer(mapView.map(), new LineStyle(Color.CYAN, 10));
         for ( GeoPoint p : routePoints) {
             pathLayer.addPoint(p);
         }
         mapView.map().layers().add(mapView.map().layers().size() - 2, pathLayer);
-        //TODO: Show marker at final destination
+        markerLayer.addItem(new MarkerItem(Utils.selectedInfo.name, "", Utils.selectedInfo.location));
     }
 
     enum Mode {
@@ -503,6 +521,29 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 costing = "bicycle";
         }
         Utils.getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, costing);
+    }
+
+    static void stopNavigation() {
+        currentMilestone = null;
+        mode = Mode.NONE;
+        route = null;
+        instance.modeImage.setVisibility(View.INVISIBLE);
+        instance.etaText.setVisibility(View.INVISIBLE);
+        for (Layer layer: mapView.map().layers()) {
+            if (layer instanceof PathLayer) {
+                mapView.map().layers().remove(layer);
+            }
+        }
+        markerLayer.removeAllItems();
+        Utils.selectedInfo = null;
+        if (navigation != null) navigation.onDestroy();
+        if (instance.bluetoothConnected) {
+            instance.directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
+            instance.primaryInstructionText.setText("Connected to Bluetooth device");
+        } else {
+            instance.directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+            instance.primaryInstructionText.setText("Waiting for Bluetooth connection");
+        }
     }
 
     private static List<GeoPoint> decodePolyline(String encoded) {
@@ -911,6 +952,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             @Override
             public boolean onGesture(Gesture gesture) {
                 if (gesture == Gesture.TAP && lastLocation != null) {
+                    AudioManager am = (AudioManager) instance.getSystemService(Context.AUDIO_SERVICE);
+                    am.playSoundEffect(Sounds.TAP);
                     Intent tapIntent = new Intent(MainActivity.this, SearchActivity.class);
                     startActivity(tapIntent);
                     return true;

@@ -49,13 +49,19 @@ public class SearchActivity extends Activity {
     }
 
     private void createCards() {
-        mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setIcon(R.drawable.ic_bookmark)
-                .setText("Saved"));
-        mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                .setText("Search")
-                .setIcon(R.drawable.ic_search)
-                .setFootnote("Uses the Nominatim API"));
+        if (MainActivity.navigation != null) {
+            mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
+                    //.setIcon(R.drawable.ic_stop)
+                    .setText("Stop navigation"));
+        } else {
+            mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
+                    .setIcon(R.drawable.ic_bookmark)
+                    .setText("Saved"));
+            mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
+                    .setText("Search")
+                    .setIcon(R.drawable.ic_search)
+                    .setFootnote("Uses the Nominatim API"));
+        }
     }
 
     private class ExampleCardScrollAdapter extends CardScrollAdapter {
@@ -98,18 +104,23 @@ public class SearchActivity extends Activity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                 am.playSoundEffect(Sounds.TAP);
-                if (position == 0 && !searched) {
-                    try {
-                        displayResults(getSavedPlaces());
-                    } catch (JSONException e) {
-                        throw new RuntimeException(e);
+                if (MainActivity.navigation == null) {
+                    if (position == 0 && !searched) {
+                        try {
+                            displayResults(getSavedPlaces());
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else if (position == 1 && !searched) {
+                        displaySpeechRecognizer();
+                    } else {
+                        Utils.selectedInfo = searchResults.get(position);
+                        Intent routeIntent = new Intent(SearchActivity.this, RouteActivity.class);
+                        startActivity(routeIntent);
                     }
-                } else if (position == 1 && !searched) {
-                    displaySpeechRecognizer();
                 } else {
-                    Utils.selectedInfo = searchResults.get(position);
-                    Intent routeIntent = new Intent(SearchActivity.this, RouteActivity.class);
-                    startActivity(routeIntent);
+                    MainActivity.stopNavigation();
+                    finish();
                 }
             }
         });
