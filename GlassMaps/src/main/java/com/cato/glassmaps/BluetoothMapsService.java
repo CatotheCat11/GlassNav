@@ -44,6 +44,18 @@ public class BluetoothMapsService {
         mAcceptThread = new AcceptThread();
         mAcceptThread.start();
     }
+
+    public synchronized void stop() {
+        Log.d(TAG, "stop");
+        if (mConnectedThread != null) {
+            mConnectedThread.cancel();
+            mConnectedThread = null;
+        }
+        if (mAcceptThread != null) {
+            mAcceptThread.cancel();
+            mAcceptThread = null;
+        }
+    }
     private class AcceptThread extends Thread {
         private final BluetoothServerSocket mmServerSocket;
 

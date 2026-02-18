@@ -154,20 +154,12 @@ public class SearchActivity extends Activity {
         for (Utils.LocationInfo result : searchResults) {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
                     .setText(result.name)
-                    .setFootnote("Distance: " + formatDistance(result.distance)));
+                    .setFootnote("Distance: " + Utils.formatDistance(result.distance)));
         }
         Log.i(TAG, "Results: "+searchResults);
         mCardScrollView.setSelection(0);
         mAdapter.notifyDataSetChanged();
         searched=true;
-    }
-
-    private String formatDistance(float distance) {
-        if (distance >= 1000) {
-            return (distance/1000) + " km";
-        } else {
-            return distance + " m";
-        }
     }
 
     private static float distFrom(GeoPoint point1, GeoPoint point2) {

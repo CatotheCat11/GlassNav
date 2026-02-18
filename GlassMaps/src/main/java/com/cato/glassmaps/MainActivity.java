@@ -19,6 +19,8 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
@@ -38,6 +40,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
 
+import com.google.android.glass.media.Sounds;
 import com.google.android.glass.touchpad.Gesture;
 import com.google.android.glass.touchpad.GestureDetector;
 
@@ -119,6 +122,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private LocationTextureLayer locationTextureLayer;
     private IRenderTheme theme;
     private LocationManager locationManager;
+    private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
     private ImageView navArrow;
     private SensorManager sensorManager;
@@ -139,13 +143,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static boolean initialized = false;
     private static String queuedText;
     static Mode mode;
+    static MapLibreNavigation navigation = null;
 
     private final Handler bluetoothHandler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(@NonNull android.os.Message msg) {
             if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_READ) {
                 bluetoothConnected = true;
-                if (mode == Mode.NONE) {
+                if (navigation == null) {
                     directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
                     primaryInstructionText.setText("Connected to Bluetooth device");
                 }
@@ -178,7 +183,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
             } else if (msg.what == BluetoothMapsService.MessageConstants.MESSAGE_ERROR) {
                 bluetoothConnected = false;
-                if (mode == Mode.NONE) {
+                if (navigation == null) {
                     directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
                     primaryInstructionText.setText("Waiting for Bluetooth connection");
                 }
@@ -247,7 +252,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 
         // Initialize wake lock
-        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "GlassMaps::LocationWakeLock");
         try {
@@ -387,7 +392,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         };
 
-        MapLibreNavigation navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
+        navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
         navigation.startNavigation(route);
         instance.modeImage.setVisibility(View.VISIBLE);
         switch (mode) {
@@ -421,7 +426,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         }
                     }
                 }
-                instance.directionDistance.setText(Math.round(routeProgress.getStepDistanceRemaining()) + "m");
+                instance.directionDistance.setText(Utils.formatDistance((float) routeProgress.getStepDistanceRemaining()));
                 instance.etaText.setText(Math.round(routeProgress.getDurationRemaining()/60) + " min");
                 RouteLegProgress currentLegProgress = routeProgress.getCurrentLegProgress();
                 if (currentLegProgress.getUpComingStep() != null) {
@@ -430,14 +435,20 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
             }
         });
+
         navigation.addMilestoneEventListener(new MilestoneEventListener() {
             @Override
             public void onMilestoneEvent(@NotNull RouteProgress routeProgress, @Nullable String instruction, @NotNull Milestone milestone) {
                 //TODO: Turn on screen, play alert sound, then use tts with instruction
                 Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
+                PowerManager.WakeLock wklk = instance.powerManager.newWakeLock(
+                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "GlassMaps::InstructionWakeLock");
+                wklk.acquire(1000);
                 if (instruction != null) {
                     speak(instruction);
                 }
+                wklk.release();
                 currentMilestone = milestone;
             }
         });
@@ -448,6 +459,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     navigation.stopNavigation();
                     speak("Rerouting.");
                     route();
+                } else {
+                    Log.w(TAG, "Device offline, will not reroute.");
                 }
             }
         });
@@ -460,6 +473,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     route = null;
                     instance.modeImage.setVisibility(View.INVISIBLE);
                     instance.etaText.setVisibility(View.INVISIBLE);
+                    for (Layer layer: mapView.map().layers()) {
+                        if (layer instanceof PathLayer) {
+                            mapView.map().layers().remove(layer);
+                        }
+                    }
                 }
             }
         });
@@ -478,12 +496,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         CYCLE,
         DRIVE
     }
+
     static void route() {
-        for (Layer layer: mapView.map().layers()) {
-            if (layer instanceof PathLayer) {
-                mapView.map().layers().remove(layer);
-            }
-        }
+        if (navigation != null) navigation.onDestroy();
         String costing = "auto";
         switch (mode) {
             case DRIVE:
@@ -535,11 +550,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
          * Whenever your activity exits, some cleanup operations have to be performed lest your app
          * runs out of memory.
          */
-        if (wakeLock.isHeld()) {
-            wakeLock.release();
-        }
+        if (wakeLock.isHeld()) wakeLock.release();
         mapView.onDestroy();
         if (theme != null) theme.dispose();
+        if (navigation != null) navigation.onDestroy();
+        bluetoothService.stop();
         super.onDestroy();
     }
 

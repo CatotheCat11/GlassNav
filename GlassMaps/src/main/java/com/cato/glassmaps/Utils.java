@@ -2,7 +2,9 @@ package com.cato.glassmaps;
 
 import android.content.Context;
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
+import android.net.Uri;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -16,6 +18,7 @@ import org.maplibre.navigation.core.models.RouteOptions;
 import org.maplibre.navigation.core.models.StepManeuver;
 import org.oscim.core.GeoPoint;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -131,15 +134,22 @@ public class Utils {
         });
     }
 
+    public static String formatDistance(float distance) {
+        if (distance >= 1000) {
+            return Math.round(distance/1000) + " km";
+        } else {
+            return Math.round(distance) + " m";
+        }
+    }
+
     static boolean isNetworkConnected(Context context) {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
 
         return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
     }
 
-
     static Integer getImageFromManuever(StepManeuver maneuver) {
-        Integer image = R.drawable.da_turn_unknown;
+        int image = R.drawable.da_turn_unknown;
         ManeuverModifier.Type modifier = maneuver.getModifier();
         switch (maneuver.getType()) {
             case FORK:
@@ -149,6 +159,8 @@ public class Utils {
                     image = R.drawable.da_turn_fork_left;
                 } else if (modifier == ManeuverModifier.Type.STRAIGHT) {
                     image = R.drawable.da_turn_straight;
+                } else {
+                    Log.e(TAG, "FORK image for " + modifier.toString() + " not implemented!");
                 }
                 break;
             case END_OF_ROAD:
@@ -169,6 +181,8 @@ public class Utils {
                     image = R.drawable.da_turn_sharp_left;
                 } else if (modifier == ManeuverModifier.Type.UTURN) {
                     image = R.drawable.da_turn_uturn;
+                } else {
+                    Log.e(TAG, "TURN image for " + modifier.toString() + " not implemented!");
                 }
                 break;
             case MERGE:
@@ -198,6 +212,8 @@ public class Utils {
                     image = R.drawable.da_turn_roundabout_4;
                 } else if (modifier == ManeuverModifier.Type.UTURN) {
                     image = R.drawable.da_turn_uturn;
+                } else {
+                    Log.e(TAG, "ROUNDABOUT image for " + modifier.toString() + " not implemented!");
                 }
                 break;
             case CONTINUE:
@@ -207,10 +223,12 @@ public class Utils {
                 Log.e(TAG, "NEW_NAME image not implemented!");
                 break;
             case OFF_RAMP:
-                if (modifier == ManeuverModifier.Type.RIGHT) {
+                if (modifier == ManeuverModifier.Type.RIGHT || modifier == ManeuverModifier.Type.SLIGHT_RIGHT) {
                     image = R.drawable.da_turn_ramp_right;
-                } else if (modifier == ManeuverModifier.Type.LEFT) {
+                } else if (modifier == ManeuverModifier.Type.LEFT || modifier == ManeuverModifier.Type.SLIGHT_LEFT) {
                     image = R.drawable.da_turn_ramp_left;
+                } else {
+                    Log.e(TAG, "OFF_RAMP image for " + modifier.toString() + " not implemented!");
                 }
                 break;
             case USE_LANE:
@@ -223,6 +241,12 @@ public class Utils {
             case EXIT_ROUNDABOUT:
                 image = R.drawable.da_turn_roundabout_exit;
                 break;
+            default:
+                Log.e(TAG, maneuver.getType().toString() + " image not implemented!");
+                break;
+        }
+        if (image == R.drawable.da_turn_unknown) {
+            Log.e(TAG, "Unknown image");
         }
         return image;
     }
