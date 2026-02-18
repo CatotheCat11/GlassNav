@@ -1,4 +1,4 @@
-package com.cato.glassmapscompanion
+package com.cato.glassnavcompanion
 
 import android.Manifest
 import android.app.Notification
@@ -25,8 +25,7 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.cato.glassmapscompanion.MainActivity.Companion.bluetoothConnected
-import org.json.JSONObject
+import com.cato.glassnavcompanion.MainActivity.Companion.bluetoothConnected
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -52,7 +51,7 @@ class BluetoothMapsService(): Service() {
         }
 
         const val TAG: String = "BluetoothMapsService"
-        const val NAME: String = "GlassMapsBluetooth"
+        const val NAME: String = "GlassNavBluetooth"
         const val MESSAGE_CONNECT: Int = -1
         const val MESSAGE_READ: Int = 0
         const val MESSAGE_WRITE: Int = 1

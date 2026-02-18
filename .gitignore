@@ -1,0 +1,5 @@
+/build/
+/GlassNav/build/
+.gradle
+.idea
+local.properties

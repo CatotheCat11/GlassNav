@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace 'com.cato.glassmapscompanion'
+    namespace 'com.cato.glassnavcompanion'
     compileSdk 36
 
     defaultConfig {
-        applicationId "com.cato.glassmapscompanion"
+        applicationId "com.cato.glassnavcompanion"
         minSdk 23
         targetSdk 36
         versionCode 1

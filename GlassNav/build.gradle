@@ -4,12 +4,12 @@ plugins {
 }
 
 android {
-    namespace 'com.cato.glassmaps'
+    namespace 'com.cato.glassnav'
     compileSdk 36
 
     defaultConfig {
         multiDexEnabled true
-        applicationId "com.cato.glassmaps"
+        applicationId "com.cato.glassnav"
         minSdk 19
         targetSdk 36
         versionCode 1

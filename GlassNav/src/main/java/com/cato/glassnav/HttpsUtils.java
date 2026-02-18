@@ -1,4 +1,4 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 
 import android.os.AsyncTask;
 import android.util.Log;
@@ -30,7 +30,7 @@ public class HttpsUtils {
                     if (method.equals("GET")) {
                         request = new Request.Builder()
                                 .url(url)
-                                .addHeader("User-Agent", "GlassMaps/1.0")
+                                .addHeader("User-Agent", "GlassNav/1.0")
                                 .addHeader("Content-Type", "application/json")
                                 .addHeader("Accept", "application/json")
                                 .build();
@@ -44,14 +44,14 @@ public class HttpsUtils {
                             request = new Request.Builder()
                                     .url(url)
                                     .post(requestBody)
-                                    .addHeader("User-Agent", "GlassMaps/1.0")
+                                    .addHeader("User-Agent", "GlassNav/1.0")
                                     .addHeader("Content-Type", "application/json")
                                     .addHeader("Accept", "application/json")
                                     .build();
                         } else {
                             request = new Request.Builder()
                                     .url(url)
-                                    .addHeader("User-Agent", "GlassMaps/1.0")
+                                    .addHeader("User-Agent", "GlassNav/1.0")
                                     .addHeader("Accept", "application/json")
                                     .build();
                         }

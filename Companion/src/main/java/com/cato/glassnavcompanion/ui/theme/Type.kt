@@ -1,4 +1,4 @@
-package com.cato.glassmapscompanion.ui.theme
+package com.cato.glassnavcompanion.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

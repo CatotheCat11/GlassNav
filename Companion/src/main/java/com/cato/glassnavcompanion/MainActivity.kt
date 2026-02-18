@@ -1,4 +1,4 @@
-package com.cato.glassmapscompanion
+package com.cato.glassnavcompanion
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -45,7 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.cato.glassmapscompanion.ui.theme.GlassMapsCompanionTheme
+import com.cato.glassnavcompanion.ui.theme.GlassNavCompanionTheme
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                     val intent = Intent(this, BluetoothMapsService::class.java)
                     ContextCompat.startForegroundService(this, intent)
                     setContent {
-                        GlassMapsCompanionTheme {
+                        GlassNavCompanionTheme {
                             Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
                                 val state = remember { TextFieldState() }
                                 MainView(
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
         val viewBox =
             (BluetoothMapsService.lastLocation!!.longitude - 1.8).toString() + "," + (BluetoothMapsService.lastLocation!!.latitude - 1.8) + "," + (BluetoothMapsService.lastLocation!!.longitude + 1.8) + "," + (BluetoothMapsService.lastLocation!!.latitude + 1.8)
         val request: Request = Request.Builder()
-            .header("User-Agent", "GlassMaps/1.0")
+            .header("User-Agent", "GlassNav/1.0")
             .url("https://nominatim.openstreetmap.org/search?format=json&bounded=1&q=$query&viewbox=$viewBox")
             .build()
 

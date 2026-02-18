@@ -1,10 +1,7 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 
 import android.content.Context;
-import android.content.Intent;
-import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
-import android.net.Uri;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -18,14 +15,13 @@ import org.maplibre.navigation.core.models.RouteOptions;
 import org.maplibre.navigation.core.models.StepManeuver;
 import org.oscim.core.GeoPoint;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 public class Utils {
     static LocationInfo selectedInfo;
-    private static final String TAG = "GlassMaps Utils";
+    private static final String TAG = "GlassNav Utils";
     static class LocationInfo {
         String name;
         String displayName;

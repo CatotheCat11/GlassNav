@@ -1,14 +1,11 @@
-package com.cato.glassmaps
+package com.cato.glassnav
 
-import android.content.Context
-import android.location.LocationListener
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import org.maplibre.navigation.core.location.Location
 import org.maplibre.navigation.core.location.engine.LocationEngine
-import org.maplibre.navigation.core.location.toLocation
 
 class KotlinUtils {
 

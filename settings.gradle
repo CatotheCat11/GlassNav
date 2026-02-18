@@ -21,6 +21,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Glass Maps"
-include ':GlassMaps'
+include ':GlassNav'
 include ':Companion'
 include ':maplibre-navigation-core'

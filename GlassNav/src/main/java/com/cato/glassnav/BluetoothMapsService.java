@@ -1,4 +1,4 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
@@ -18,7 +18,7 @@ import java.util.UUID;
 @SuppressLint("MissingPermission") // Google Glass XE only needs the BLUETOOTH permission
 public class BluetoothMapsService {
     private static final String TAG = "BluetoothMapsService";
-    private static final String NAME = "GlassMapsBluetooth";
+    private static final String NAME = "GlassNavBluetooth";
     private static final UUID MY_UUID = UUID.fromString("684ebeac-9863-4145-8e66-efb89c816434");
     private final BluetoothAdapter mAdapter;
     private final Handler mHandler;

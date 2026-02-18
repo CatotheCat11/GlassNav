@@ -1,4 +1,4 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 
 import android.app.Activity;
 import android.content.Context;
@@ -19,16 +19,9 @@ import com.google.android.glass.widget.CardScrollView;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.maplibre.geojson.model.Point;
-import org.maplibre.navigation.core.models.DirectionsResponse;
-import org.maplibre.navigation.core.models.DirectionsRoute;
-import org.maplibre.navigation.core.models.RouteOptions;
 
-import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 public class RouteActivity extends Activity {
     private List<CardBuilder> mCards;

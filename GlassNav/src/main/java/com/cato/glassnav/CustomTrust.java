@@ -1,4 +1,4 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 import android.content.Context;
 
 import org.conscrypt.Conscrypt;
@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;

@@ -1,4 +1,4 @@
-package com.cato.glassmaps;
+package com.cato.glassnav;
 
 import static java.lang.Math.abs;
 
@@ -19,8 +19,6 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
@@ -40,7 +38,6 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
 
-import com.google.android.glass.media.Sounds;
 import com.google.android.glass.touchpad.Gesture;
 import com.google.android.glass.touchpad.GestureDetector;
 
@@ -59,7 +56,6 @@ import org.maplibre.navigation.core.models.StepManeuver;
 import org.maplibre.navigation.core.navigation.MapLibreNavigation;
 import org.maplibre.navigation.core.navigation.MapLibreNavigationOptions;
 import org.maplibre.navigation.core.navigation.NavigationEventListener;
-import org.maplibre.navigation.core.navigation.camera.Camera;
 import org.maplibre.navigation.core.navigation.camera.SimpleCamera;
 import org.maplibre.navigation.core.offroute.OffRouteDetector;
 import org.maplibre.navigation.core.offroute.OffRouteListener;
@@ -81,11 +77,7 @@ import org.oscim.layers.tile.buildings.BuildingLayer;
 import org.oscim.layers.tile.vector.VectorTileLayer;
 import org.oscim.layers.tile.vector.labeling.LabelLayer;
 import org.oscim.renderer.LocationCallback;
-import org.oscim.theme.ExternalRenderTheme;
 import org.oscim.theme.IRenderTheme;
-import org.oscim.theme.StreamRenderTheme;
-import org.oscim.theme.ThemeFile;
-import org.oscim.theme.ThemeLoader;
 import org.oscim.theme.styles.LineStyle;
 import org.oscim.tiling.source.OkHttpEngine;
 import org.oscim.tiling.source.UrlTileSource;
@@ -254,7 +246,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         // Initialize wake lock
         powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
-                "GlassMaps::LocationWakeLock");
+                "GlassNav::LocationWakeLock");
         try {
             openMap();
         } catch (Exception e) {
@@ -443,7 +435,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
                 PowerManager.WakeLock wklk = instance.powerManager.newWakeLock(
                         PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                        "GlassMaps::InstructionWakeLock");
+                        "GlassNav::InstructionWakeLock");
                 wklk.acquire(1000);
                 if (instruction != null) {
                     speak(instruction);
