@@ -510,7 +510,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         for ( GeoPoint p : routePoints) {
             pathLayer.addPoint(p);
         }
-        mapView.map().layers().add(mapView.map().layers().size() - 2, pathLayer);
+        mapView.map().layers().add(2, pathLayer);
         markerLayer.addItem(new MarkerItem(Utils.selectedInfo.name, "", Utils.selectedInfo.location));
     }
 
