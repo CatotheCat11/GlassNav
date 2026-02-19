@@ -51,7 +51,7 @@ public class SearchActivity extends Activity {
     private void createCards() {
         if (MainActivity.navigation != null) {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                    //.setIcon(R.drawable.ic_stop)
+                    .setIcon(R.drawable.ic_close)
                     .setText("Stop navigation"));
         } else {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
