@@ -128,6 +128,7 @@ public class SearchActivity extends Activity {
 
     private JSONArray getSavedPlaces() throws JSONException {
         SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
+        Log.d(TAG, "Saved places: " + sharedPreferences.getString("places", "[]"));
         return new JSONArray(sharedPreferences.getString("places", "[]"));
     }
 
@@ -142,14 +143,12 @@ public class SearchActivity extends Activity {
         for (int i = 0; i < results.length(); i++) {
             try {
                 JSONObject result = results.getJSONObject(i);
-                if (!result.getString("name").isBlank()) {
-                    String name = result.getString("name");
-                    String displayName = result.getString("display_name");
-                    GeoPoint location = new GeoPoint(result.getDouble("lat"), result.getDouble("lon"));
-                    float distance = distFrom(location, lastLocation);
-                    Utils.LocationInfo searchResult = new Utils.LocationInfo(name, displayName, location, distance);
-                    searchResults.add(searchResult);
-                }
+                String name = result.getString("name");
+                String displayName = result.getString("display_name");
+                GeoPoint location = new GeoPoint(result.getDouble("lat"), result.getDouble("lon"));
+                float distance = distFrom(location, lastLocation);
+                Utils.LocationInfo searchResult = new Utils.LocationInfo(name, displayName, location, distance);
+                searchResults.add(searchResult);
             } catch (JSONException e) {
                 Log.e(TAG, "An error occurred: " + e);
             }
@@ -163,7 +162,7 @@ public class SearchActivity extends Activity {
         });
         for (Utils.LocationInfo result : searchResults) {
             mCards.add(new CardBuilder(this, CardBuilder.Layout.MENU)
-                    .setText(result.name)
+                    .setText(result.name.isBlank() ? result.displayName : result.name)
                     .setFootnote("Distance: " + Utils.formatDistance(result.distance)));
         }
         Log.i(TAG, "Results: "+searchResults);
