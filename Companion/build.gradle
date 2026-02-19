@@ -52,4 +52,7 @@ dependencies {
     implementation "androidx.compose.runtime:runtime-saveable:1.10.2"
     implementation "androidx.compose.foundation:foundation:1.10.2"
     implementation "com.squareup.okhttp3:okhttp:5.3.2"
+    implementation "org.maplibre.compose:maplibre-compose:0.12.1"
+    debugImplementation libs.ui.tooling
+    debugImplementation libs.ui.test.manifest
 }

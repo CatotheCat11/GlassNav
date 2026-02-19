@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
@@ -63,7 +66,6 @@ import kotlin.math.sqrt
 class MainActivity : ComponentActivity() {
     val LOCATION_PERMISSION_REQUEST_CODE = 0
     var requestingLocationUpdates: Boolean = false
-    private lateinit var client: OkHttpClient
 
     var searchResults: MutableList<LocationInfo> = mutableStateListOf()
     val locationManager: LocationManager by lazy {
@@ -71,8 +73,22 @@ class MainActivity : ComponentActivity() {
     }
     companion object {
         const val TAG: String = "MainActivity"
+        lateinit var client: OkHttpClient
         lateinit var macAddress: String
         var bluetoothConnected: MutableState<Boolean> = mutableStateOf(false) //FIXME: Forgets state when device rotated
+        fun distFrom(point1: GeoPoint, point2: GeoPoint): Float {
+
+            val earthRadius = 6371000.0 //meters
+            val dLat = Math.toRadians(point2.latitude - point1.latitude)
+            val dLng = Math.toRadians(point2.longitude - point1.longitude)
+            val a = sin(dLat / 2) * sin(dLat / 2) +
+                    cos(Math.toRadians(point1.latitude)) * cos(Math.toRadians(point2.latitude)) * sin(
+                dLng / 2
+            ) * sin(dLng / 2)
+            val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+            return (earthRadius * c).toFloat()
+        }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -186,19 +202,6 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun distFrom(point1: GeoPoint, point2: GeoPoint): Float {
-        val earthRadius = 6371000.0 //meters
-        val dLat = Math.toRadians(point2.latitude - point1.latitude)
-        val dLng = Math.toRadians(point2.longitude - point1.longitude)
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(Math.toRadians(point1.latitude)) * cos(Math.toRadians(point2.latitude)) * sin(
-            dLng / 2
-        ) * sin(dLng / 2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        return (earthRadius * c).toFloat()
-    }
-
     @RequiresApi(Build.VERSION_CODES.S)
     fun hasBluetoothPermissions():Boolean {
         return ContextCompat.checkSelfPermission(
@@ -260,6 +263,7 @@ fun MainView(
 ) {
     // Controls expansion state of the search bar
     var expanded by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Box(
         modifier
@@ -288,6 +292,16 @@ fun MainView(
             ) {
                 // Display search results in a scrollable column
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    ListItem(
+                        headlineContent = { Text("Pick from map") },
+                        leadingContent = { Image(painter = painterResource(R.drawable.ic_pin_drop), contentDescription = "Pick from map")},
+                        modifier = Modifier
+                            .clickable {
+                                val intent = Intent(context, LocationPickerActivity::class.java)
+                                context.startActivity(intent)
+                            }
+                            .fillMaxWidth()
+                    )
                     searchResults.forEach { result ->
                         ListItem(
                             headlineContent = { Text(result.name) },
