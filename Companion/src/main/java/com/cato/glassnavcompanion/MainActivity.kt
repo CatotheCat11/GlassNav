@@ -277,7 +277,6 @@ fun MainView(
                         onQueryChange = { textFieldState.edit { replace(0, length, it) } },
                         onSearch = {
                             onSearch(textFieldState.text.toString())
-                            expanded = false
                         },
                         expanded = expanded,
                         onExpandedChange = { expanded = it },
