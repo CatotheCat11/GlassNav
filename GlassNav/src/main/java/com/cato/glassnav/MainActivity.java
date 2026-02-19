@@ -536,7 +536,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         markerLayer.removeAllItems();
         Utils.selectedInfo = null;
-        if (navigation != null) navigation.onDestroy();
+        if (navigation != null) {
+            navigation.onDestroy();
+            navigation = null;
+        }
         if (instance.bluetoothConnected) {
             instance.directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
             instance.primaryInstructionText.setText("Connected to Bluetooth device");
