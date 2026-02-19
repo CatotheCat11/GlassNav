@@ -19,9 +19,6 @@ import org.maplibre.navigation.core.navigation.engine.NavigationEngine
 import org.maplibre.navigation.core.offroute.OffRoute
 import org.maplibre.navigation.core.offroute.OffRouteDetector
 import org.maplibre.navigation.core.offroute.OffRouteListener
-import org.maplibre.navigation.core.route.FasterRoute
-import org.maplibre.navigation.core.route.FasterRouteDetector
-import org.maplibre.navigation.core.route.FasterRouteListener
 import org.maplibre.navigation.core.routeprogress.ProgressChangeListener
 import org.maplibre.navigation.core.snap.Snap
 import org.maplibre.navigation.core.snap.SnapToRoute
@@ -50,9 +47,6 @@ import kotlin.jvm.JvmOverloads
  * @param offRouteEngine        This param is used to pass in a custom implementation of the off-route
  *  logic, A default off-route detection engine is attached when this class is first initialized;
  *  setting a custom one will replace it with your own implementation.
- * @param fasterRouteEngine     This API is used to pass in a custom implementation of the faster-route
- *  detection logic, A default faster-route detection engine is attached when this class is first
- *  initialized; setting a custom one will replace it with your own implementation.
  * @param routeUtils            core utility class for route related calculations
  *
  * @see MapLibreNavigationOptions
@@ -87,7 +81,6 @@ open class MapLibreNavigation @JvmOverloads constructor(
     var cameraEngine: Camera = SimpleCamera(),
     var snapEngine: Snap = SnapToRoute(),
     var offRouteEngine: OffRoute = OffRouteDetector(),
-    var fasterRouteEngine: FasterRoute = FasterRouteDetector(options),
     val routeUtils: RouteUtils = RouteUtils(),
 ) {
     /**
@@ -99,7 +92,6 @@ open class MapLibreNavigation @JvmOverloads constructor(
         cameraEngine: Camera = SimpleCamera(),
         snapEngine: Snap = SnapToRoute(),
         offRouteEngine: OffRoute = OffRouteDetector(),
-        fasterRouteEngine: FasterRoute = FasterRouteDetector(options),
         routeUtils: RouteUtils = RouteUtils(),
         mapLibreNavigationEngine: MapLibreNavigationEngine
     ) : this(
@@ -108,7 +100,6 @@ open class MapLibreNavigation @JvmOverloads constructor(
         cameraEngine,
         snapEngine,
         offRouteEngine,
-        fasterRouteEngine,
         routeUtils,
     ) {
         this.mapLibreNavigationEngine = mapLibreNavigationEngine
@@ -509,46 +500,4 @@ open class MapLibreNavigation @JvmOverloads constructor(
         eventDispatcher.removeNavigationEventListener(navigationEventListener)
     }
 
-    /**
-     * This adds a new faster route listener which is invoked when a new, faster [DirectionsRoute]
-     * has been retrieved by the specified criteria in [FasterRoute].
-     *
-     *
-     * The behavior that causes this listeners callback to get invoked vary depending on whether a
-     * custom faster route engine has been set using [.setFasterRouteEngine].
-     *
-     *
-     * It is not possible to add the same listener implementation more then once and a warning will be
-     * printed in the log if attempted.
-     *
-     *
-     * @param fasterRouteListener an implementation of `FasterRouteListener`
-     * @see FasterRouteListener
-     *
-     * @since 0.9.0
-     */
-    fun addFasterRouteListener(fasterRouteListener: FasterRouteListener) {
-        eventDispatcher.addFasterRouteListener(fasterRouteListener)
-    }
-
-    /**
-     * This removes a specific faster route listener by passing in the instance of it or you can pass in
-     * null to remove all the listeners. When [.onDestroy] is called, all listeners
-     * get removed automatically, removing the requirement for developers to manually handle this.
-     *
-     *
-     * If the listener you are trying to remove does not exist in the list, a warning will be printed
-     * in the log.
-     *
-     *
-     * @param fasterRouteListener an implementation of `FasterRouteListener` which currently exist in
-     * the fasterRouteListeners list
-     * @see FasterRouteListener
-     *
-     * @since 0.9.0
-     */
-    @Suppress("unused")
-    fun removeFasterRouteListener(fasterRouteListener: FasterRouteListener?) {
-        eventDispatcher.removeFasterRouteListener(fasterRouteListener)
-    }
 }

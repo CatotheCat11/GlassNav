@@ -2,7 +2,6 @@ package org.maplibre.navigation.core.navigation
 
 import org.maplibre.navigation.core.milestone.BannerInstructionMilestone
 import org.maplibre.navigation.core.milestone.VoiceInstructionMilestone
-import org.maplibre.navigation.core.route.FasterRouteDetector
 
 
 /**
@@ -53,8 +52,6 @@ data class MapLibreNavigationOptions(
     val snapToRoute: Boolean = Defaults.SNAP_TO_ROUTE,
 
     val enableOffRouteDetection: Boolean = Defaults.ENABLE_OFF_ROUTE_DETECTION,
-
-    val enableFasterRouteDetection: Boolean = Defaults.ENABLE_FASTER_ROUTE_DETECTION,
 
     val manuallyEndNavigationUponCompletion: Boolean = Defaults.MANUALLY_END_NAVIGATION_UPON_COMPLETION,
 
@@ -109,12 +106,6 @@ data class MapLibreNavigationOptions(
      */
     val locationAcceptableAccuracyInMetersThreshold: Int = Defaults.LOCATION_ACCEPTABLE_ACCURACY_IN_METERS_THRESHOLD,
 
-    /**
-     * In seconds, how quickly [FasterRouteDetector]
-     * will tell [RouteProcessorBackgroundThread] to check
-     * for a faster [org.maplibre.navigation.core.models.DirectionsRoute].
-     */
-    val fasterRouteCheckIntervalSeconds: Int = Defaults.FASTER_ROUTE_CHECK_INTERVAL_SECONDS
 ) {
     fun toBuilder(): Builder {
         return Builder()
@@ -127,7 +118,6 @@ data class MapLibreNavigationOptions(
             .withDefaultMilestonesEnabled(defaultMilestonesEnabled)
             .withSnapToRoute(snapToRoute)
             .withEnableOffRouteDetection(enableOffRouteDetection)
-            .withEnableFasterRouteDetection(enableFasterRouteDetection)
             .withManuallyEndNavigationUponCompletion(manuallyEndNavigationUponCompletion)
             .withMetersRemainingTillArrival(metersRemainingTillArrival)
             .withOffRouteMinimumDistanceMetersAfterReroute(offRouteMinimumDistanceMetersAfterReroute)
@@ -138,7 +128,6 @@ data class MapLibreNavigationOptions(
             .withRoundingIncrement(roundingIncrement)
             .withTimeFormatType(timeFormatType)
             .withLocationAcceptableAccuracyInMetersThreshold(locationAcceptableAccuracyInMetersThreshold)
-            .withFasterRouteCheckIntervalSeconds(fasterRouteCheckIntervalSeconds)
     }
 
     enum class TimeFormat(val id: Int) {
@@ -165,7 +154,6 @@ data class MapLibreNavigationOptions(
         const val DEFAULT_MILESTONES_ENABLED = true
         const val SNAP_TO_ROUTE = true
         const val ENABLE_OFF_ROUTE_DETECTION = true
-        const val ENABLE_FASTER_ROUTE_DETECTION = false
         const val MANUALLY_END_NAVIGATION_UPON_COMPLETION = false
         const val METERS_REMAINING_TILL_ARRIVAL = 40.0
         const val OFF_ROUTE_MINIMUM_DISTANCE_METERS_AFTER_REROUTE = 50.0
@@ -174,7 +162,6 @@ data class MapLibreNavigationOptions(
         const val OFF_ROUTE_MINIMUM_DISTANCE_METERS_BEFORE_RIGHT_DIRECTION = 20.0
         const val IS_DEBUG_LOGGING_ENABLED = false
         const val LOCATION_ACCEPTABLE_ACCURACY_IN_METERS_THRESHOLD = 100
-        const val FASTER_ROUTE_CHECK_INTERVAL_SECONDS = 120
         val roundingIncrement = RoundingIncrement.ROUNDING_INCREMENT_FIFTY
     }
 
@@ -188,7 +175,6 @@ data class MapLibreNavigationOptions(
         private var defaultMilestonesEnabled: Boolean = Defaults.DEFAULT_MILESTONES_ENABLED
         private var snapToRoute: Boolean = Defaults.SNAP_TO_ROUTE
         private var enableOffRouteDetection: Boolean = Defaults.ENABLE_OFF_ROUTE_DETECTION
-        private var enableFasterRouteDetection: Boolean = Defaults.ENABLE_FASTER_ROUTE_DETECTION
         private var manuallyEndNavigationUponCompletion: Boolean =
             Defaults.MANUALLY_END_NAVIGATION_UPON_COMPLETION
         private var metersRemainingTillArrival: Double = Defaults.METERS_REMAINING_TILL_ARRIVAL
@@ -205,8 +191,6 @@ data class MapLibreNavigationOptions(
         private var timeFormatType: TimeFormat = TimeFormat.NONE_SPECIFIED
         private var locationAcceptableAccuracyInMetersThreshold: Int =
             Defaults.LOCATION_ACCEPTABLE_ACCURACY_IN_METERS_THRESHOLD
-        private var fasterRouteCheckIntervalSeconds: Int =
-            Defaults.FASTER_ROUTE_CHECK_INTERVAL_SECONDS
 
         fun withMaxTurnCompletionOffset(maxTurnCompletionOffset: Double) = apply { this.maxTurnCompletionOffset = maxTurnCompletionOffset }
         fun withManeuverZoneRadius(maneuverZoneRadius: Double) = apply { this.maneuverZoneRadius = maneuverZoneRadius }
@@ -217,7 +201,6 @@ data class MapLibreNavigationOptions(
         fun withDefaultMilestonesEnabled(defaultMilestonesEnabled: Boolean) = apply { this.defaultMilestonesEnabled = defaultMilestonesEnabled }
         fun withSnapToRoute(snapToRoute: Boolean) = apply { this.snapToRoute = snapToRoute }
         fun withEnableOffRouteDetection(enableOffRouteDetection: Boolean) = apply { this.enableOffRouteDetection = enableOffRouteDetection }
-        fun withEnableFasterRouteDetection(enableFasterRouteDetection: Boolean) = apply { this.enableFasterRouteDetection = enableFasterRouteDetection }
         fun withManuallyEndNavigationUponCompletion(manuallyEndNavigationUponCompletion: Boolean) = apply { this.manuallyEndNavigationUponCompletion = manuallyEndNavigationUponCompletion }
         fun withMetersRemainingTillArrival(metersRemainingTillArrival: Double) = apply { this.metersRemainingTillArrival = metersRemainingTillArrival }
         fun withOffRouteMinimumDistanceMetersAfterReroute(offRouteMinimumDistanceMetersAfterReroute: Double) = apply { this.offRouteMinimumDistanceMetersAfterReroute = offRouteMinimumDistanceMetersAfterReroute }
@@ -228,7 +211,6 @@ data class MapLibreNavigationOptions(
         fun withRoundingIncrement(roundingIncrement: RoundingIncrement) = apply { this.roundingIncrement = roundingIncrement }
         fun withTimeFormatType(timeFormatType: TimeFormat) = apply { this.timeFormatType = timeFormatType }
         fun withLocationAcceptableAccuracyInMetersThreshold(locationAcceptableAccuracyInMetersThreshold: Int) = apply { this.locationAcceptableAccuracyInMetersThreshold = locationAcceptableAccuracyInMetersThreshold }
-        fun withFasterRouteCheckIntervalSeconds(fasterRouteCheckIntervalSeconds: Int) = apply { this.fasterRouteCheckIntervalSeconds = fasterRouteCheckIntervalSeconds }
 
         fun build(): MapLibreNavigationOptions {
             return MapLibreNavigationOptions(
@@ -241,7 +223,6 @@ data class MapLibreNavigationOptions(
                 defaultMilestonesEnabled,
                 snapToRoute,
                 enableOffRouteDetection,
-                enableFasterRouteDetection,
                 manuallyEndNavigationUponCompletion,
                 metersRemainingTillArrival,
                 offRouteMinimumDistanceMetersAfterReroute,
@@ -252,7 +233,6 @@ data class MapLibreNavigationOptions(
                 roundingIncrement,
                 timeFormatType,
                 locationAcceptableAccuracyInMetersThreshold,
-                fasterRouteCheckIntervalSeconds
             )
         }
     }

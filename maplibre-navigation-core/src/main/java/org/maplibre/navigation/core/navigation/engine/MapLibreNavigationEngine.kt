@@ -87,7 +87,7 @@ open class MapLibreNavigationEngine(
 
     /**
      * Takes a new location model and route indices runs all related engine checks against it
-     * (off-route, milestones, snapped location, and faster-route).
+     * (off-route, milestones, and snapped location).
      *
      * After running through the engines, all data is submitted to [NavigationEventDispatcher].
      *

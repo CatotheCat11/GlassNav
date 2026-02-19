@@ -6,7 +6,6 @@ import org.maplibre.navigation.core.milestone.Milestone
 import org.maplibre.navigation.core.milestone.MilestoneEventListener
 import org.maplibre.navigation.core.models.DirectionsRoute
 import org.maplibre.navigation.core.offroute.OffRouteListener
-import org.maplibre.navigation.core.route.FasterRouteListener
 import org.maplibre.navigation.core.routeprogress.ProgressChangeListener
 import org.maplibre.navigation.core.routeprogress.RouteProgress
 
@@ -15,7 +14,6 @@ open class NavigationEventDispatcher {
     private val milestoneEventListeners = mutableListOf<MilestoneEventListener>()
     private val progressChangeListeners = mutableListOf<ProgressChangeListener>()
     private val offRouteListeners = mutableListOf<OffRouteListener>()
-    private val fasterRouteListeners = mutableListOf<FasterRouteListener>()
 
     fun addMilestoneEventListener(milestoneEventListener: MilestoneEventListener) {
         if (milestoneEventListeners.contains(milestoneEventListener)) {
@@ -89,24 +87,6 @@ open class NavigationEventDispatcher {
         }
     }
 
-    fun addFasterRouteListener(fasterRouteListener: FasterRouteListener) {
-        if (fasterRouteListeners.contains(fasterRouteListener)) {
-            Log.w("MapLibre", "The specified FasterRouteListener has already been added to the stack.")
-            return
-        }
-        fasterRouteListeners.add(fasterRouteListener)
-    }
-
-    fun removeFasterRouteListener(fasterRouteListener: FasterRouteListener?) {
-        if (fasterRouteListener == null) {
-            fasterRouteListeners.clear()
-        } else if (!fasterRouteListeners.contains(fasterRouteListener)) {
-            Log.w("MapLibre", "The specified FasterRouteListener isn't found in stack, therefore, cannot be removed.")
-        } else {
-            fasterRouteListeners.remove(fasterRouteListener)
-        }
-    }
-
     fun onMilestoneEvent(
         routeProgress: RouteProgress,
         instruction: String?,
@@ -132,12 +112,6 @@ open class NavigationEventDispatcher {
     fun onNavigationEvent(isRunning: Boolean) {
         for (navigationEventListener in navigationEventListeners) {
             navigationEventListener.onRunning(isRunning)
-        }
-    }
-
-    fun onFasterRouteEvent(directionsRoute: DirectionsRoute?) {
-        for (fasterRouteListener in fasterRouteListeners) {
-            fasterRouteListener.fasterRouteFound(directionsRoute)
         }
     }
 }

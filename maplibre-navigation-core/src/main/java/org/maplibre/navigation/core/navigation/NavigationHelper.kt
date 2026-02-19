@@ -493,16 +493,6 @@ object NavigationHelper {
         )
     }
 
-    @Suppress("unused")
-    @JvmStatic
-    fun shouldCheckFasterRoute(navigationLocationUpdate: NavigationLocationUpdate, routeProgress: RouteProgress): Boolean {
-        val fasterRouteEngine = navigationLocationUpdate.mapLibreNavigation.fasterRouteEngine
-        return fasterRouteEngine.shouldCheckFasterRoute(
-            navigationLocationUpdate.location,
-            routeProgress
-        )
-    }
-
     /**
      * Retrieves the next steps maneuver position if one exist, otherwise it decodes the current steps
      * geometry and uses the last coordinate in the position list.

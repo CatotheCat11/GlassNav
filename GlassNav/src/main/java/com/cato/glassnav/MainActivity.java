@@ -58,11 +58,9 @@ import org.maplibre.navigation.core.models.DirectionsRoute;
 import org.maplibre.navigation.core.models.StepManeuver;
 import org.maplibre.navigation.core.navigation.MapLibreNavigation;
 import org.maplibre.navigation.core.navigation.MapLibreNavigationOptions;
-import org.maplibre.navigation.core.navigation.NavigationEventListener;
 import org.maplibre.navigation.core.navigation.camera.SimpleCamera;
 import org.maplibre.navigation.core.offroute.OffRouteDetector;
 import org.maplibre.navigation.core.offroute.OffRouteListener;
-import org.maplibre.navigation.core.route.FasterRouteDetector;
 import org.maplibre.navigation.core.routeprogress.ProgressChangeListener;
 import org.maplibre.navigation.core.routeprogress.RouteLegProgress;
 import org.maplibre.navigation.core.routeprogress.RouteProgress;
@@ -81,7 +79,6 @@ import org.oscim.layers.PathLayer;
 import org.oscim.layers.marker.ItemizedLayer;
 import org.oscim.layers.marker.MarkerInterface;
 import org.oscim.layers.marker.MarkerItem;
-import org.oscim.layers.marker.MarkerLayer;
 import org.oscim.layers.marker.MarkerSymbol;
 import org.oscim.layers.tile.buildings.BuildingLayer;
 import org.oscim.layers.tile.vector.VectorTileLayer;
@@ -427,7 +424,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         };
 
-        navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
+        navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new RouteUtils());
         navigation.startNavigation(route);
         modeImage.setVisibility(View.VISIBLE);
         switch (mode) {
