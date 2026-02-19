@@ -1,6 +1,7 @@
 package com.cato.glassnav;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.util.Log;
 
@@ -52,7 +53,14 @@ public class Utils {
         );
     }
 
-    public static void getRoute(double latitude, double longitude, String name, String costing){
+    static void startMainActivity(Context context, int action) {
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("action", action);
+        context.startActivity(intent);
+    }
+
+    public static void getRoute(double latitude, double longitude, String name, String costing, Context context) {
         //FIXME: Crash if lastlocation is null
         Log.d(TAG, "Getting route to " + latitude + ", " + longitude);
         JSONObject request = new JSONObject();
@@ -120,7 +128,7 @@ public class Utils {
                 );
 
                 MainActivity.route = route.toBuilder().withRouteOptions(routeOptions).build();
-                MainActivity.startRouteNavigation();
+                startMainActivity(context, 0);
             }
 
             @Override

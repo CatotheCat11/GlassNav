@@ -119,7 +119,7 @@ public class SearchActivity extends Activity {
                         startActivity(routeIntent);
                     }
                 } else {
-                    MainActivity.stopNavigation();
+                    Utils.startMainActivity(SearchActivity.this, 1);
                     finish();
                 }
             }

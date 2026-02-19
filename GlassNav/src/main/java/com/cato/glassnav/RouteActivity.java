@@ -125,13 +125,13 @@ public class RouteActivity extends Activity {
                 }*/
                 if (position == 1) { // Start walking
                     MainActivity.mode = MainActivity.Mode.WALK;
-                    startMainActivity();
+                    Utils.startMainActivity(RouteActivity.this, 0);
                 } else if (position == 2) { // Start cycling
                     MainActivity.mode = MainActivity.Mode.CYCLE;
-                    startMainActivity();
+                    Utils.startMainActivity(RouteActivity.this, 0);
                 } else if (position == 3) { // Start driving
                     MainActivity.mode = MainActivity.Mode.DRIVE;
-                    startMainActivity();
+                    Utils.startMainActivity(RouteActivity.this, 0);
                 } else if (position == 4) {
                     if (saved) { // Unsave
                         SharedPreferences sharedPreferences = getSharedPreferences("places", Context.MODE_PRIVATE);
@@ -180,13 +180,5 @@ public class RouteActivity extends Activity {
             }
         });
     }
-
-    void startMainActivity() {
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        MainActivity.startRouteNavigation();
-        this.startActivity(intent);
-    }
-
 
 }

@@ -110,7 +110,6 @@ import okhttp3.OkHttpClient;
 
 public class MainActivity extends Activity implements SensorEventListener, TextToSpeech.OnInitListener {
     private static final String TAG = "MainActivity";
-    static MainActivity instance;
     static MapView mapView;
     TextView directionDistance;
     TextView primaryInstructionText;
@@ -210,7 +209,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        instance = this;
         CustomTrust customTrust = new CustomTrust(getApplicationContext());
         client = customTrust.getClient();
 
@@ -278,6 +276,25 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             Log.i(TAG, "Bluetooth not supported on this device");
         }
     }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        Log.i(TAG, "Received new intent: " + intent);
+        Bundle bundle = intent.getExtras();
+        if (bundle != null && bundle.get("action") != null) {
+            switch ((int) bundle.get("action")) {
+                case 0:
+                    Log.i(TAG, "Intent requested to start navigation");
+                    startRouteNavigation();
+                    break;
+                case 1:
+                    Log.i(TAG, "Intent requested to stop navigation");
+                    stopNavigation();
+                    break;
+            }
+        }
+    }
+
     private void openMap() {
         try {
             VectorTileLayer tileLayer;
@@ -370,7 +387,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
 
 
-    public static void startRouteNavigation() {
+    public void startRouteNavigation() {
         Log.i(TAG, "Starting route navigation");
         if (route == null) {
             Log.e(TAG, "No route available for navigation");
@@ -412,19 +429,19 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         navigation = new MapLibreNavigation(new MapLibreNavigationOptions(), locationEngine, new SimpleCamera(), snapToRoute, new OffRouteDetector(), new FasterRouteDetector( new MapLibreNavigationOptions()), new RouteUtils());
         navigation.startNavigation(route);
-        instance.modeImage.setVisibility(View.VISIBLE);
+        modeImage.setVisibility(View.VISIBLE);
         switch (mode) {
             case WALK:
-                instance.modeImage.setImageResource(R.drawable.travel_mode_walk);
+                modeImage.setImageResource(R.drawable.travel_mode_walk);
                 break;
             case CYCLE:
-                instance.modeImage.setImageResource(R.drawable.travel_mode_bike);
+                modeImage.setImageResource(R.drawable.travel_mode_bike);
                 break;
             case DRIVE:
-                instance.modeImage.setImageResource(R.drawable.travel_mode_drive);
+                modeImage.setImageResource(R.drawable.travel_mode_drive);
                 break;
         }
-        instance.etaText.setVisibility(View.VISIBLE);
+        etaText.setVisibility(View.VISIBLE);
         navigation.addProgressChangeListener(new ProgressChangeListener() {
             @Override
             public void onProgressChange(org.maplibre.navigation.core.location.@NotNull Location location, @NotNull RouteProgress routeProgress) {
@@ -433,23 +450,23 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 if (currentMilestone instanceof BannerInstructionMilestone) {
                     BannerInstructions instructions = ((BannerInstructionMilestone) currentMilestone).getBannerInstructions();
                     if (instructions != null) {
-                        instance.primaryInstructionText.setText(instructions.getPrimary().getText());
+                        primaryInstructionText.setText(instructions.getPrimary().getText());
                         if (instructions.getSecondary() != null) {
-                            instance.secondaryInstructionText.setText(instructions.getSecondary().getText());
+                            secondaryInstructionText.setText(instructions.getSecondary().getText());
                         } else {
-                            instance.secondaryInstructionText.setText("");
+                            secondaryInstructionText.setText("");
                         }
                         if (instructions.getSub() != null) {
                             Log.i(TAG, "Subtext: " + instructions.getSub().getText());
                         }
                     }
                 }
-                instance.directionDistance.setText(Utils.formatDistance((float) routeProgress.getStepDistanceRemaining()));
-                instance.etaText.setText(Math.round(routeProgress.getDurationRemaining()/60) + " min");
+                directionDistance.setText(Utils.formatDistance((float) routeProgress.getStepDistanceRemaining()));
+                etaText.setText(Math.round(routeProgress.getDurationRemaining()/60) + " min");
                 RouteLegProgress currentLegProgress = routeProgress.getCurrentLegProgress();
                 if (currentLegProgress.getUpComingStep() != null) {
                     StepManeuver currentManeuver = currentLegProgress.getUpComingStep().getManeuver();
-                    instance.directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
+                    directionImage.setImageResource(Utils.getImageFromManuever(currentManeuver));
                 }
                 if (currentMilestone != null && navigation.getRouteUtils().isArrivalEvent(routeProgress, currentMilestone)) {
                     Log.i(TAG, "Arrival milestone reached");
@@ -458,14 +475,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         });
 
+        PowerManager.WakeLock wklk = powerManager.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "GlassNav::InstructionWakeLock");
         navigation.addMilestoneEventListener(new MilestoneEventListener() {
             @Override
             public void onMilestoneEvent(@NotNull RouteProgress routeProgress, @Nullable String instruction, @NotNull Milestone milestone) {
                 //TODO: Turn on screen, play alert sound, then use tts with instruction
                 Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
-                PowerManager.WakeLock wklk = instance.powerManager.newWakeLock(
-                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                        "GlassNav::InstructionWakeLock");
                 wklk.acquire(1000);
                 if (instruction != null) {
                     speak(instruction);
@@ -477,7 +494,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         navigation.addOffRouteListener(new OffRouteListener() {
             @Override
             public void userOffRoute(org.maplibre.navigation.core.location.@NotNull Location location) {
-                if (Utils.isNetworkConnected(instance)) {
+                if (Utils.isNetworkConnected(getApplicationContext())) {
                     navigation.stopNavigation();
                     speak("Rerouting.");
                     route();
@@ -507,7 +524,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         DRIVE
     }
 
-    static void route() {
+    void route() {
         if (navigation != null) navigation.onDestroy();
         String costing = "auto";
         switch (mode) {
@@ -520,15 +537,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             case CYCLE:
                 costing = "bicycle";
         }
-        Utils.getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, costing);
+        Utils.getRoute(Utils.selectedInfo.location.getLatitude(), Utils.selectedInfo.location.getLongitude(), Utils.selectedInfo.name, costing, this);
     }
 
-    static void stopNavigation() {
+    void stopNavigation() {
         currentMilestone = null;
         mode = Mode.NONE;
         route = null;
-        instance.modeImage.setVisibility(View.INVISIBLE);
-        instance.etaText.setVisibility(View.INVISIBLE);
+        modeImage.setVisibility(View.INVISIBLE);
+        etaText.setVisibility(View.INVISIBLE);
         for (Layer layer: mapView.map().layers()) {
             if (layer instanceof PathLayer) {
                 mapView.map().layers().remove(layer);
@@ -540,12 +557,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             navigation.onDestroy();
             navigation = null;
         }
-        if (instance.bluetoothConnected) {
-            instance.directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
-            instance.primaryInstructionText.setText("Connected to Bluetooth device");
+        if (bluetoothConnected) {
+            directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
+            primaryInstructionText.setText("Connected to Bluetooth device");
         } else {
-            instance.directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
-            instance.primaryInstructionText.setText("Waiting for Bluetooth connection");
+            directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+            primaryInstructionText.setText("Waiting for Bluetooth connection");
         }
     }
 
@@ -955,7 +972,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             @Override
             public boolean onGesture(Gesture gesture) {
                 if (gesture == Gesture.TAP && lastLocation != null) {
-                    AudioManager am = (AudioManager) instance.getSystemService(Context.AUDIO_SERVICE);
+                    AudioManager am = (AudioManager) getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
                     am.playSoundEffect(Sounds.TAP);
                     Intent tapIntent = new Intent(MainActivity.this, SearchActivity.class);
                     startActivity(tapIntent);
