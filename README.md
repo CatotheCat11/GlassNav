@@ -7,7 +7,7 @@ A navigation app for the Google Glass.
 - See nearby places on the map view.
 - Navigate anywhere, with real-time turn-by-turn voice and on screen directions
 ## Setup
-1. Install the app using [`adb`](https://developer.android.com/tools/help/adb.html)
+1. [Download](https://github.com/CatotheCat11/GlassNav/releases/latest) the app, then install it using [`adb`](https://developer.android.com/tools/help/adb.html)
 ```
     adb install GlassNav.apk
 ```
