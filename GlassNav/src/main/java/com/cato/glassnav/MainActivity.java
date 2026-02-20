@@ -378,6 +378,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
             // Request location updates
             locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
+            // Get network location on startup
+            getNetworkLocationUpdates();
             startLocationUpdates();
         } catch (Exception e) {
             /*
@@ -757,7 +760,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     } catch (JSONException e) {
                         Log.e(TAG, "JSON Parsing Error: " + e);
                     }
-                    locationListener.onLocationChanged(networkLocation);
+                    if (!bluetoothConnected) {
+                        locationListener.onLocationChanged(networkLocation);
+                    }
                 }
 
                 @Override
@@ -873,7 +878,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             if (mode == Mode.NONE || mode == Mode.WALK) {
                 mapView.map().viewport().setRotation(-mHeading);
             }
-            mapView.map().updateMap(true);
+            mapView.map().updateMap(false);
         }
     }
 
