@@ -147,6 +147,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        if (!bluetoothConnected.value) {
+            BluetoothMapsService.stop()
+        }
+        super.onDestroy()
+    }
+
     fun hasLocationPermissions():Boolean {
         return ContextCompat.checkSelfPermission(
             this,

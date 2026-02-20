@@ -37,6 +37,12 @@ class BluetoothMapsService(): Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        fun connect(device: BluetoothDevice) {
+            Log.d(TAG, "Connecting to device: ${device.name}")
+            mConnectThread = instance?.ConnectThread(device)
+            mConnectThread?.start()
+        }
+
         fun disconnect() {
             mConnectThread?.cancel()
             mConnectThread = null;
@@ -45,10 +51,9 @@ class BluetoothMapsService(): Service() {
             bluetoothConnected.value = false
         }
 
-        fun connect(device: BluetoothDevice) {
-            Log.d(TAG, "Connecting to device: ${device.name}")
-            mConnectThread = instance?.ConnectThread(device)
-            mConnectThread?.start()
+        fun stop() {
+            disconnect()
+            instance?.stopSelf()
         }
 
         fun write(bytes: ByteArray?) {
