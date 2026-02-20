@@ -611,7 +611,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         mapView.onDestroy();
         if (theme != null) theme.dispose();
         if (navigation != null) navigation.onDestroy();
-        bluetoothService.stop();
+        if (bluetoothService != null) bluetoothService.stop();
         super.onDestroy();
     }
 
@@ -982,6 +982,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     am.playSoundEffect(Sounds.TAP);
                     Intent tapIntent = new Intent(MainActivity.this, SearchActivity.class);
                     startActivity(tapIntent);
+                    return true;
+                }
+                if (gesture == Gesture.SWIPE_DOWN) {
+                    AudioManager am = (AudioManager) getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
+                    am.playSoundEffect(Sounds.DISMISSED);
+                    finish();
                     return true;
                 }
                 return false;
