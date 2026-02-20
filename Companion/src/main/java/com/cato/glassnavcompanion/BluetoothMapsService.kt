@@ -85,23 +85,27 @@ class BluetoothMapsService(): Service() {
         Log.i(TAG, "Location update: $location")
         lastLocation = location
         if (bluetoothConnected.value) {
-            val latBytes =
-                ByteBuffer.allocate(8).putDouble(location.latitude).array()
-            val lonBytes =
-                ByteBuffer.allocate(8).putDouble(location.longitude).array()
-            val altBytes =
-                ByteBuffer.allocate(8).putDouble(location.altitude).array()
-            val speedBytes = ByteBuffer.allocate(4).putFloat(location.speed).array()
-            val bearingBytes =
-                ByteBuffer.allocate(4).putFloat(location.bearing).array()
-            val locationData = ByteArray(32)
-            System.arraycopy(latBytes, 0, locationData, 0, 8)
-            System.arraycopy(lonBytes, 0, locationData, 8, 8)
-            System.arraycopy(altBytes, 0, locationData, 16, 8)
-            System.arraycopy(speedBytes, 0, locationData, 24, 4)
-            System.arraycopy(bearingBytes, 0, locationData, 28, 4)
-            Companion.write(locationData)
+            Companion.write(locationToBytes(location))
         }
+    }
+
+    fun locationToBytes(location: Location): ByteArray {
+        val latBytes =
+            ByteBuffer.allocate(8).putDouble(location.latitude).array()
+        val lonBytes =
+            ByteBuffer.allocate(8).putDouble(location.longitude).array()
+        val altBytes =
+            ByteBuffer.allocate(8).putDouble(location.altitude).array()
+        val speedBytes = ByteBuffer.allocate(4).putFloat(location.speed).array()
+        val bearingBytes =
+            ByteBuffer.allocate(4).putFloat(location.bearing).array()
+        val locationData = ByteArray(32)
+        System.arraycopy(latBytes, 0, locationData, 0, 8)
+        System.arraycopy(lonBytes, 0, locationData, 8, 8)
+        System.arraycopy(altBytes, 0, locationData, 16, 8)
+        System.arraycopy(speedBytes, 0, locationData, 24, 4)
+        System.arraycopy(bearingBytes, 0, locationData, 28, 4)
+        return locationData
     }
 
 
@@ -164,6 +168,8 @@ class BluetoothMapsService(): Service() {
                     // Get the message content from the handler message
                     Log.d(TAG, "Connected")
                     bluetoothConnected.value = true
+                    // Send last known location immediately upon connection
+                    locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { write(locationToBytes(it)) }
                 }
                 MESSAGE_READ -> {
                     // Get the message content from the handler message
