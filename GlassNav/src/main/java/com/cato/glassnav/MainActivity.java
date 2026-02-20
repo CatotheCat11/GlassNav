@@ -156,7 +156,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 try {
                     byte[] payload = (byte[]) msg.obj;
                     String readMessage = new String(payload, 0, msg.arg1);
-                    Log.i(TAG, "Got bluetooth message: " + readMessage);
+                    //Log.i(TAG, "Got bluetooth message: " + readMessage);
                     String jsonString = readMessage.trim();
                     if (jsonString.startsWith("{")) {
                         try {
@@ -169,7 +169,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                         }
                     } else {
                         Location btLocation = locationFromBytes(payload);
-                        Log.d(TAG, "Bluetooth location received: " + btLocation);
+                        //Log.d(TAG, "Bluetooth location received: " + btLocation);
                         locationListener.onLocationChanged(btLocation);
                         // Stop GPS updates when Bluetooth is connected
                         if (locationManager != null) {
@@ -450,7 +450,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         navigation.addProgressChangeListener(new ProgressChangeListener() {
             @Override
             public void onProgressChange(org.maplibre.navigation.core.location.@NotNull Location location, @NotNull RouteProgress routeProgress) {
-                Log.i(TAG, "Progress update: " + routeProgress);
+                //Log.i(TAG, "Progress update: " + routeProgress);
                 currentProgress = routeProgress;
                 if (currentMilestone instanceof BannerInstructionMilestone) {
                     BannerInstructions instructions = ((BannerInstructionMilestone) currentMilestone).getBannerInstructions();
@@ -462,7 +462,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                             secondaryInstructionText.setText("");
                         }
                         if (instructions.getSub() != null) {
-                            Log.i(TAG, "Subtext: " + instructions.getSub().getText());
+                            //Log.i(TAG, "Subtext: " + instructions.getSub().getText());
                         }
                     }
                 }
@@ -487,7 +487,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             @Override
             public void onMilestoneEvent(@NotNull RouteProgress routeProgress, @Nullable String instruction, @NotNull Milestone milestone) {
                 //TODO: Turn on screen, play alert sound, then use tts with instruction
-                Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
+                //Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
                 wklk.acquire(15000);
                 if (instruction != null) {
                     speak(instruction);
@@ -502,9 +502,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     navigation.stopNavigation();
                     speak("Rerouting.");
                     route();
-                } else {
+                } /*else {
                     Log.w(TAG, "Device offline, will not reroute.");
-                }
+                }*/
             }
         });
         List<GeoPoint> routePoints = decodePolyline(route.getGeometry());
@@ -746,7 +746,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             HttpsUtils.makePostRequest(client, "https://api.beacondb.net/v1/geolocate", jsonBody, "POST", new HttpsUtils.HttpCallback() {
                 @Override
                 public void onSuccess(String response) {
-                    Log.d(TAG, "Network location response: " + response);
+                    //Log.d(TAG, "Network location response: " + response);
                     Location networkLocation = new Location(LocationManager.NETWORK_PROVIDER);
                     try {
                         JSONObject jsonResponse = new JSONObject(response);
@@ -770,9 +770,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     Log.e(TAG, "Network location error: " + errorMessage);
                 }
             });
-        } else {
+        } /*else {
             Log.d(TAG, "Scan results unchanged, skipping network location request");
-        }
+        }*/
 
     }
 
