@@ -28,11 +28,11 @@ jobs:
     - name: Upload GlassNav APK
       uses: actions/upload-artifact@v4
       with:
-        name: built-apk
+        name: GlassNav APK
         path: GlassNav/build/outputs/apk/**/*.apk
 
     - name: Upload Companion APK
       uses: actions/upload-artifact@v4
       with:
-        name: OpenPrism Debug AAR
+        name: GlassNav Companion APK
         path: Companion/build/outputs/apk/**/*.apk
