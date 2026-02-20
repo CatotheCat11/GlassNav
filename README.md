@@ -21,7 +21,7 @@ You have to connect your phone to Glass to send location data. If you're using G
   1. Make sure your phone and Glass are paired and connected with Bluetooth.
   2. Open GlassNav on your Glass.
   3. Open GlassNav Companion on your phone.
-  4. Select your Glass from the list of devices, and wait for it to connect.
+  4. The companion app should connect automatically to the Glass. If it doesn't, select your Glass from the list of paired bluetooth devices shown.
 ### Finding places
 - GlassNav uses [Nominatim](https://nominatim.org/) to search for places. To search, tap the touchpad while in the map view to open the menu, and select Search. This will start speech recognition; say the name of the place you're searching for.
   Then select from the list of search results.
