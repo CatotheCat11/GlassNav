@@ -1,6 +1,8 @@
 # GlassNav
 A navigation app for the Google Glass.
+
 <img width="640" height="360" alt="screenshot" src="https://github.com/user-attachments/assets/e7dbe512-69ff-483f-9403-f043087b67ac" />
+
 ## Features
 - See nearby places on the map view.
 - Navigate anywhere, with real-time turn-by-turn voice and on screen directions
