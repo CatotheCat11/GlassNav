@@ -19,7 +19,7 @@ Other apps that pass location data to the Glass should work as well, such as [An
    - Place the file in the root folder of your Glass storage. GlassNav will find and use it automatically.
 ## Usage
 ### Connecting your phone to Glass
-You have to connect your phone to Glass to send location data. If you're using GlassMaps Companion:
+You have to connect your phone to Glass to send location data. If you're using GlassNav Companion:
   1. Make sure your phone and Glass are paired and connected with Bluetooth.
   2. Open GlassNav on your Glass.
   3. Open GlassNav Companion on your phone.
