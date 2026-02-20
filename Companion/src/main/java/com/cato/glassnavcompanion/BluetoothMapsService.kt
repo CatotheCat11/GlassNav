@@ -106,6 +106,13 @@ class BluetoothMapsService(): Service() {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
         startLocationUpdates()
+        for (device in mAdapter?.bondedDevices ?: emptySet()) {
+            if (device.name.contains("Glass", ignoreCase = true)) {
+                Log.d(TAG, "Found paired Glass device: ${device.name}, attempting to connect")
+                connect(device)
+                break
+            }
+        }
     }
 
     private fun buildNotification(): Notification {
