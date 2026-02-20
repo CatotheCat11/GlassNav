@@ -141,7 +141,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static TextToSpeech tts;
     private static boolean initialized = false;
     private static String queuedText;
-    static Mode mode;
+    static Mode mode = Mode.NONE;
     static MapLibreNavigation navigation = null;
 
     private final Handler bluetoothHandler = new Handler(Looper.getMainLooper()) {
@@ -266,8 +266,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 Log.e(TAG, "Bluetooth permission not granted!");
             } else {
                 bluetoothService.start();
-                directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
-                primaryInstructionText.setText("Waiting for Bluetooth connection");
+                if (bluetoothConnected) {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_connected);
+                    primaryInstructionText.setText("Connected to Bluetooth device");
+                } else {
+                    directionImage.setImageResource(R.drawable.ic_bluetooth_searching);
+                    primaryInstructionText.setText("Waiting for Bluetooth connection");
+                }
             }
         } else {
             Log.i(TAG, "Bluetooth not supported on this device");
