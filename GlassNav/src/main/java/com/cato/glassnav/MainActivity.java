@@ -480,11 +480,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             public void onMilestoneEvent(@NotNull RouteProgress routeProgress, @Nullable String instruction, @NotNull Milestone milestone) {
                 //TODO: Turn on screen, play alert sound, then use tts with instruction
                 Log.i(TAG, "Milestone reached: " + milestone + ", instruction: " + instruction);
-                wklk.acquire(1000);
+                wklk.acquire(15000);
                 if (instruction != null) {
                     speak(instruction);
                 }
-                wklk.release();
                 currentMilestone = milestone;
             }
         });
