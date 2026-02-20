@@ -289,7 +289,8 @@ class BluetoothMapsService(): Service() {
                 mmOutStream.write(bytes)
             } catch (e: IOException) {
                 Log.e(TAG, "Error occurred when sending data", e)
-
+                bluetoothConnected.value = false
+                disconnect()
                 // Send a failure message back to the activity.
                 val writeErrorMsg = bluetoothHandler.obtainMessage(MESSAGE_ERROR)
                 val bundle = Bundle().apply {
