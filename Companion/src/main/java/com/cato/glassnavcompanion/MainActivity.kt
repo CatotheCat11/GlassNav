@@ -4,7 +4,6 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -64,13 +63,11 @@ import kotlin.math.sqrt
 
 
 class MainActivity : ComponentActivity() {
-    val LOCATION_PERMISSION_REQUEST_CODE = 0
+    val PERMISSION_REQUEST_CODE = 0
     var requestingLocationUpdates: Boolean = false
 
     var searchResults: MutableList<LocationInfo> = mutableStateListOf()
-    val locationManager: LocationManager by lazy {
-        getSystemService(LOCATION_SERVICE) as LocationManager
-    }
+
     companion object {
         const val TAG: String = "MainActivity"
         lateinit var client: OkHttpClient
@@ -95,54 +92,51 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         client = OkHttpClient()
 
-        if (!hasLocationPermissions()) {
+        val requiredPermissions: MutableList<String> = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requiredPermissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            requiredPermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requiredPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (!hasPermissions(requiredPermissions)) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ),
-                LOCATION_PERMISSION_REQUEST_CODE
+                requiredPermissions.toTypedArray(),
+                PERMISSION_REQUEST_CODE
             )
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasBluetoothPermissions()) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(
-                        Manifest.permission.BLUETOOTH_SCAN,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ),
-                    LOCATION_PERMISSION_REQUEST_CODE
-                )
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+            if (bluetoothAdapter == null) {
+                Log.e(TAG, "No bluetooth adapter found")
+                Toast.makeText(this, "No bluetooth adapter found", Toast.LENGTH_LONG).show();
+                finish()
             } else {
-                val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-                if (bluetoothAdapter == null) {
-                    Log.e(TAG, "No bluetooth adapter found")
-                    Toast.makeText(this, "No bluetooth adapter found", Toast.LENGTH_LONG).show();
-                    finish()
-                } else {
-                    val intent = Intent(this, BluetoothMapsService::class.java)
-                    ContextCompat.startForegroundService(this, intent)
-                    setContent {
-                        GlassNavCompanionTheme {
-                            Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                                val state = remember { TextFieldState() }
-                                MainView(
-                                    textFieldState = state,
-                                    onSearch = { query ->
-                                        search(query)
-                                    },
-                                    searchResults = searchResults,
-                                    connected = bluetoothConnected,
-                                    modifier = Modifier.padding(padding),
-                                    bluetoothAdapter = bluetoothAdapter
-                                )
-                            }
+                val intent = Intent(this, BluetoothMapsService::class.java)
+                ContextCompat.startForegroundService(this, intent)
+                setContent {
+                    GlassNavCompanionTheme {
+                        Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+                            val state = remember { TextFieldState() }
+                            MainView(
+                                textFieldState = state,
+                                onSearch = { query ->
+                                    search(query)
+                                },
+                                searchResults = searchResults,
+                                connected = bluetoothConnected,
+                                modifier = Modifier.padding(padding),
+                                bluetoothAdapter = bluetoothAdapter
+                            )
                         }
                     }
-                    requestingLocationUpdates = true;
                 }
+                requestingLocationUpdates = true;
             }
         }
     }
@@ -154,19 +148,18 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    fun hasLocationPermissions():Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(
+    fun hasPermissions(permissions: MutableList<String>):Boolean {
+        var hasAllPermissions = true
+        for (permission in permissions) {
+            if (ContextCompat.checkSelfPermission(
                     this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
+                    permission
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                hasAllPermissions = false
+            }
+        }
+        return hasAllPermissions
     }
 
     fun search(query: String) {
@@ -208,18 +201,6 @@ class MainActivity : ComponentActivity() {
             }
         })
     }
-
-    @RequiresApi(Build.VERSION_CODES.S)
-    fun hasBluetoothPermissions():Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.BLUETOOTH_SCAN
-        ) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) == PackageManager.PERMISSION_GRANTED
-    }
     fun sendKey(key: String, extras: Bundle) {
         if (extras.containsKey(key)) {
             Log.i(TAG, "Sending key $key")
@@ -237,7 +218,7 @@ class MainActivity : ComponentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+        if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 recreate()
             } else {
