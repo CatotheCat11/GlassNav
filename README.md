@@ -35,7 +35,7 @@ You have to connect your phone to Glass to send location data. If you're using G
 
 ## Credits
 - [Mapsforge V™](https://github.com/mapsforge/vtm): Vector map rendering library.
-- [MapLibre Navigation SDK](https://github.com/maplibre/maplibre-navigation-android/): Contains the logic needed to get timed navigation instructions.
+- [MapLibre Navigation SDK](https://github.com/maplibre/maplibre-navigation-android/): Contains the logic needed to get timed navigation instructions. GlassNav uses a modification of this library that supports Android 4.4.
 - [MapLibre Compose](https://github.com/maplibre/maplibre-compose): Used for map view in location selector in GlassNav Companion.
 - [Nominatim](https://nominatim.org/): Uses OpenStreetMap data to find locations on Earth by name and address (geocoding). 
 - [Valhalla](https://github.com/valhalla): Open Source Routing Engine for OpenStreetMap. GlassNav currently uses Valhalla's online API to get routes.
