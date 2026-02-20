@@ -613,7 +613,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         @Override
         public void run() {
             long now = System.currentTimeMillis();
-            if (now - lastGpsTimestamp >= GPS_TIMEOUT_MS) {
+            if (now - lastGpsTimestamp >= GPS_TIMEOUT_MS && mode == Mode.NONE) {
                 getNetworkLocationUpdates();
             }
         }
