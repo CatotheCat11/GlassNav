@@ -340,6 +340,12 @@ fun MainView(
                 Text("Glass is connected", modifier = modifier.align(Alignment.CenterHorizontally))
                 Button(
                     onClick = {
+                        BluetoothMapsService.disconnect()
+                    },
+                    modifier = modifier.align(Alignment.CenterHorizontally)
+                ) { Text("Disconnect") }
+                Button(
+                    onClick = {
                         BluetoothMapsService.connect(BluetoothAdapter.getDefaultAdapter().getRemoteDevice(
                             MainActivity.macAddress))
                     },

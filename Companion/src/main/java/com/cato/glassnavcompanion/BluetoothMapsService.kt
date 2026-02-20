@@ -37,7 +37,12 @@ class BluetoothMapsService(): Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        fun start() {
+        fun disconnect() {
+            mConnectThread?.cancel()
+            mConnectThread = null;
+            mConnectedThread?.cancel()
+            mConnectedThread = null;
+            bluetoothConnected.value = false
         }
 
         fun connect(device: BluetoothDevice) {
@@ -160,7 +165,7 @@ class BluetoothMapsService(): Service() {
                     val readMessage = msg.obj as String
                     Log.d(TAG, "Received: $readMessage")
                 }
-                BluetoothMapsService.MESSAGE_ERROR -> {
+                MESSAGE_ERROR -> {
                     // Get the message content from the handler message
                     if (msg.obj != null) {
                         val readMessage = msg.obj as String
