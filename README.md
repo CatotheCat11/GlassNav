@@ -34,6 +34,7 @@ You have to connect your phone to Glass to send location data. If you're using G
 - To stop navigation, tap the touchpad to open the menu, and select Stop navigation.
 
 ## Credits
+- [OpenStreetMap](https://www.openstreetmap.org/about): Source of map data.
 - [Mapsforge V™](https://github.com/mapsforge/vtm): Vector map rendering library.
 - [MapLibre Navigation SDK](https://github.com/maplibre/maplibre-navigation-android/): Contains the logic needed to get timed navigation instructions. GlassNav uses a modification of this library that supports Android 4.4.
 - [MapLibre Compose](https://github.com/maplibre/maplibre-compose): Used for map view in location selector in GlassNav Companion.
