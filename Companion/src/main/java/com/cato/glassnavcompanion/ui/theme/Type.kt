@@ -13,7 +13,9 @@ val Typography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
+	// I'm editing this solely to test out how GitHub works
+	// And every repo looks good with multiple contributors :)
+        letterSpacing = 0.51.sp
     )
     /* Other default text styles to override
     titleLarge = TextStyle(
